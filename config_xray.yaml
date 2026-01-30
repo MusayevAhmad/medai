@@ -1,0 +1,70 @@
+# X-Ray Image Classification Configuration
+# Configuration for chest X-ray analysis model
+
+model:
+  # Backbone architecture
+  backbone: "densenet121"  # Options: densenet121, resnet50, efficientnet_b0
+  pretrained: true
+  num_classes: 3  # COVID, Normal, Pneumonia
+  dropout: 0.3
+  
+dataset:
+  name: "covid19_radiography"
+  # Path will be: data/xray/COVID-19_Radiography_Dataset/
+  root_dir: "data/xray"
+  # Class names
+  classes:
+    - "COVID"
+    - "Normal" 
+    - "Viral Pneumonia"
+  # Data split ratios
+  train_ratio: 0.8
+  val_ratio: 0.1
+  test_ratio: 0.1
+  
+preprocessing:
+  image_size: 224
+  # Normalization (ImageNet stats)
+  mean: [0.485, 0.456, 0.406]
+  std: [0.229, 0.224, 0.225]
+  
+augmentation:
+  # Training augmentations
+  random_horizontal_flip: true
+  random_rotation: 10  # degrees
+  random_affine: true
+  color_jitter: false  # Not recommended for medical images
+  
+training:
+  batch_size: 32
+  epochs: 20
+  learning_rate: 0.0001
+  weight_decay: 0.0001
+  scheduler: "cosine"  # Options: cosine, step, plateau
+  early_stopping_patience: 5
+  
+  # Optimizer
+  optimizer: "adam"  # Options: adam, adamw, sgd
+  
+  # Mixed precision (faster on compatible GPUs)
+  use_amp: false
+  
+  # Seed for reproducibility
+  seed: 42
+
+output:
+  model_dir: "outputs/xray_models"
+  log_dir: "outputs/xray_logs"
+  save_best_only: true
+  
+evaluation:
+  metrics:
+    - "accuracy"
+    - "precision"
+    - "recall"
+    - "f1"
+    - "auc_roc"
+  # Generate confusion matrix
+  confusion_matrix: true
+  # Generate ROC curves
+  roc_curves: true

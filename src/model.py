@@ -20,9 +20,17 @@ from transformers import (
     AutoConfig,
     AutoModelForTokenClassification,
     AutoTokenizer,
-    PreTrainedModel,
-    PreTrainedTokenizer,
+    PreTrainedTokenizerBase,
 )
+
+# Handle different transformers versions for PreTrainedModel import
+try:
+    from transformers import PreTrainedModel
+except ImportError:
+    from transformers.modeling_utils import PreTrainedModel
+
+# Alias for type hints
+PreTrainedTokenizer = PreTrainedTokenizerBase
 
 # Optional PEFT import
 try:
