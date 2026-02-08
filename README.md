@@ -18,8 +18,16 @@ python data/prepare_data.py
 # 4. Train model
 python src/train.py
 
-# 5. Run inference
+# 5. Run inference (CLI)
 python src/predict.py --text "I have persistent headache and fever for 3 days"
+
+# Or use programmatically
+python -c "
+from src.inference import MedicalNER
+ner = MedicalNER('outputs/models/final_model')
+entities = ner.predict_entities('Patient has fever and diabetes')
+for e in entities: print(f'{e.label}: {e.text}')
+"
 ```
 
 ## Project Structure
@@ -39,9 +47,11 @@ medai/
 │   ├── model.py             # BioBERT + LoRA model
 │   ├── train.py             # Training loop
 │   ├── evaluate.py          # Evaluation metrics
-│   └── predict.py           # CLI inference
+│   ├── inference.py         # Production inference engine (MedicalNER class)
+│   └── predict.py           # CLI inference wrapper
 ├── tests/
 │   ├── test_dataset.py
+│   ├── test_inference.py    # Inference module tests
 │   └── test_predict.py
 └── outputs/
     ├── models/              # Saved LoRA adapters
