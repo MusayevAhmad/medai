@@ -1,0 +1,65 @@
+# Symptom NER Fine-Tuning Configuration
+# All hyperparameters and paths in one place
+
+model:
+  name: "dmis-lab/biobert-base-cased-v1.2"
+  max_length: 128
+
+dataset:
+  name: "bigbio/bc5cdr"
+  subset: "bc5cdr_bigbio_kb"  # BigBio knowledge base format
+  train_split: "train"
+  val_split: "validation"
+  test_split: "test"
+  synthetic_path: "data/synthetic_symptoms.csv"
+
+labels:
+  # BIO tagging scheme for NER
+  # O = Outside, B = Beginning, I = Inside
+  scheme:
+    - "O"
+    - "B-Disease"
+    - "I-Disease"
+    - "B-Chemical"
+    - "I-Chemical"
+    - "B-Symptom"
+    - "I-Symptom"
+
+training:
+  batch_size: 8
+  eval_batch_size: 16
+  epochs: 3
+  learning_rate: 2.0e-4
+  weight_decay: 0.01
+  warmup_ratio: 0.1
+  gradient_accumulation_steps: 1
+  max_grad_norm: 1.0
+  seed: 42
+  fp16: false  # Set to true for CUDA, false for MPS/CPU
+  
+lora:
+  enabled: true
+  r: 16
+  alpha: 32
+  dropout: 0.1
+  target_modules:
+    - "query"
+    - "value"
+  bias: "none"
+
+output:
+  model_dir: "outputs/models"
+  log_dir: "outputs/logs"
+  save_total_limit: 2
+  logging_steps: 50
+  eval_steps: 200
+  save_steps: 200
+
+evaluation:
+  # Entity matching mode: "strict" or "partial"
+  matching_mode: "strict"
+  # Metrics to compute
+  metrics:
+    - "precision"
+    - "recall"
+    - "f1"

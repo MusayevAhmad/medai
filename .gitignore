@@ -1,0 +1,50 @@
+# Model outputs and checkpoints (too large for GitHub)
+outputs/
+*.pt
+*.pth
+*.safetensors
+*.bin
+*.ckpt
+
+# Data files
+data/processed/
+data/xray/
+*.arrow
+
+# Results
+results/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# Virtual environments
+venv/
+env/
+.env
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+*.tmp
+*.temp
