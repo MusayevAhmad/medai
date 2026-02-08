@@ -22,7 +22,7 @@
   - Run NER on each chunk and store entities in metadata
   - Write integration test with a sample 5-page medical guideline PDF
 
-- [ ] **Task 1.3**: Set up Qdrant vector database
+- [x] **Task 1.3**: Set up Qdrant vector database
   - Install Qdrant in Docker: `docker run -p 6333:6333 qdrant/qdrant`
   - Create `src/vector_store.py` with `QdrantStore` class
   - Implement `add_chunks(chunks: List[Chunk])` method
