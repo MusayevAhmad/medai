@@ -16,7 +16,7 @@
   - Add caching for the model (load once, reuse for all predictions)
   - Write unit test: `tests/test_inference.py`
   
-- [ ] **Task 1.2**: Build PDF ingestion pipeline
+- [x] **Task 1.2**: Build PDF ingestion pipeline
   - Create `src/ingest.py` with `extract_text_from_pdf(path)` using PyMuPDF
   - Implement semantic chunking: Split on section headers first, then by token count
   - Run NER on each chunk and store entities in metadata
