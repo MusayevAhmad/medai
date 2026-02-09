@@ -204,3 +204,65 @@ class QdrantStore:
             "vector_size": self.vector_size,
             "status": str(info.status),
         }
+
+    # ------------------------------------------------------------------
+    # Search
+    # ------------------------------------------------------------------
+
+    def search(
+        self,
+        query: str,
+        top_k: int = 5,
+        with_payload: bool = True,
+    ) -> List[Dict]:
+        """Retrieve the top-k most similar chunks for a query string.
+
+        Args:
+            query: Natural-language query text.
+            top_k: Number of matches to return.
+            with_payload: Whether to return stored metadata.
+
+        Returns:
+            List of result dicts sorted by score (higher is more similar).
+        """
+        if not query:
+            return []
+
+        query_vector = self.embedder.encode(
+            [query],
+            show_progress_bar=False,
+        )[0].tolist()
+
+        if hasattr(self.client, "search"):
+            raw_results = self.client.search(
+                collection_name=self.collection_name,
+                query_vector=query_vector,
+                limit=top_k,
+                with_payload=with_payload,
+            )
+        else:
+            # Newer qdrant-client versions (0.11+) expose query_points
+            response = self.client.query_points(
+                collection_name=self.collection_name,
+                query=query_vector,
+                limit=top_k,
+                with_payload=with_payload,
+            )
+            raw_results = response.points
+
+        formatted: List[Dict] = []
+        for hit in raw_results:
+            payload = hit.payload or {}
+            formatted.append(
+                {
+                    "chunk_id": payload.get("chunk_id"),
+                    "text": payload.get("text"),
+                    "score": hit.score,
+                    "source_file": payload.get("source_file"),
+                    "page_number": payload.get("page_number"),
+                    "extracted_entities": payload.get("extracted_entities", []),
+                    "payload": payload if with_payload else {},
+                }
+            )
+
+        return formatted

@@ -28,7 +28,7 @@
   - Implement `add_chunks(chunks: List[Chunk])` method
   - Test: Insert 10 chunks and verify via Qdrant dashboard (`http://localhost:6333/dashboard`)
 
-- [ ] **Task 1.4**: Build baseline retrieval
+- [x] **Task 1.4**: Build baseline retrieval
   - Implement `search(query: str, top_k: int)` in `vector_store.py`
   - Use a simple embedding model: `sentence-transformers/all-MiniLM-L6-v2`
   - Test: Query "fever treatment" and verify it returns relevant chunks
@@ -183,4 +183,3 @@
 3. **Open Source**: Contribute a medical evaluation dataset to RAGAS
 
 **Deliverable**: Technical report + GitHub PR to a major repo.
-

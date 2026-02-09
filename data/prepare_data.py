@@ -16,6 +16,7 @@ import os
 import sys
 from pathlib import Path
 from typing import Dict, List, Tuple, Any
+import re
 
 import pandas as pd
 from datasets import Dataset, DatasetDict, load_dataset
@@ -62,17 +63,23 @@ def tokenize_and_align_labels(
             "Symptom": "Symptom",
         }
     
-    # Simple whitespace tokenization (model tokenizer will handle subwords later)
-    tokens = text.split()
+    # Regex tokenization to strip trailing punctuation while keeping character spans.
+    # This improves alignment for entities like "headache." whose offsets exclude
+    # the period.
+    token_pattern = re.compile(r"[A-Za-z0-9]+(?:'[A-Za-z0-9]+)?|[^\w\s]")
+    tokens: List[str] = []
+    token_spans: List[Tuple[int, int]] = []
+    for match in token_pattern.finditer(text):
+        tokens.append(match.group())
+        token_spans.append((match.start(), match.end()))
+
     labels = ["O"] * len(tokens)
-    
-    # Build character offset to token index mapping
+
+    # Build character offset to token index mapping using the regex spans
     char_to_token = {}
-    current_char = 0
-    for token_idx, token in enumerate(tokens):
-        for char_offset in range(current_char, current_char + len(token)):
-            char_to_token[char_offset] = token_idx
-        current_char += len(token) + 1  # +1 for space
+    for idx, (start, end) in enumerate(token_spans):
+        for char_offset in range(start, end):
+            char_to_token[char_offset] = idx
     
     # Process each entity
     for entity in entities:

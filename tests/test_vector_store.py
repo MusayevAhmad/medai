@@ -18,7 +18,7 @@ from src.vector_store import QdrantStore, DEFAULT_EMBEDDING_MODEL
 # Helpers
 # ---------------------------------------------------------------------------
 
-FAKE_VECTOR_SIZE = 384  # matches all-MiniLM-L6-v2
+FAKE_VECTOR_SIZE = 4  # minimal size for deterministic keyword embeddings
 
 
 def _make_chunk(
@@ -59,9 +59,22 @@ def _make_chunks(n: int = 10) -> list[Chunk]:
     ]
 
 
-def _fake_encode(texts, **kwargs):
-    """Return deterministic fake embeddings of the correct shape."""
-    return np.random.default_rng(42).random((len(texts), FAKE_VECTOR_SIZE)).astype(np.float32)
+def _keyword_encode(texts, **kwargs):
+    """Embed texts into a small vector based on keyword presence.
+
+    This makes search results deterministic without downloading models.
+    Vector schema: [fever, diabetes, headache, bias]
+    """
+    vectors = []
+    for text in texts:
+        t = text.lower()
+        vec = np.zeros(FAKE_VECTOR_SIZE, dtype=np.float32)
+        vec[0] = 1.0 if "fever" in t else 0.0
+        vec[1] = 1.0 if "diabetes" in t else 0.0
+        vec[2] = 1.0 if "headache" in t else 0.0
+        vec[3] = 0.1  # bias to avoid zero vector
+        vectors.append(vec)
+    return np.vstack(vectors)
 
 
 # ---------------------------------------------------------------------------
@@ -77,7 +90,7 @@ def mock_store():
     with patch("src.vector_store.SentenceTransformer") as MockST:
         mock_embedder = MagicMock()
         mock_embedder.get_sentence_embedding_dimension.return_value = FAKE_VECTOR_SIZE
-        mock_embedder.encode.side_effect = _fake_encode
+        mock_embedder.encode.side_effect = _keyword_encode
         MockST.return_value = mock_embedder
 
         store = QdrantStore(
@@ -110,7 +123,7 @@ class TestQdrantStoreInit:
         with patch("src.vector_store.SentenceTransformer") as MockST:
             mock_embedder = MagicMock()
             mock_embedder.get_sentence_embedding_dimension.return_value = FAKE_VECTOR_SIZE
-            mock_embedder.encode.side_effect = _fake_encode
+            mock_embedder.encode.side_effect = _keyword_encode
             MockST.return_value = mock_embedder
 
             # First store – insert data
@@ -215,6 +228,52 @@ class TestAddChunks:
         texts_passed = call_args[0][0]  # first positional arg
         assert len(texts_passed) == 3
         assert all(isinstance(t, str) for t in texts_passed)
+
+
+# ---------------------------------------------------------------------------
+# Tests – search
+# ---------------------------------------------------------------------------
+
+class TestSearch:
+    """Tests for the baseline semantic search."""
+
+    def test_returns_relevant_chunks(self, mock_store: QdrantStore):
+        """Query containing 'fever' should rank fever chunk highest."""
+        fever_chunk = _make_chunk(
+            text="Patient has fever and cough.",
+            chunk_id="fever_001",
+            extracted_entities=["Symptom:fever"],
+        )
+        diabetes_chunk = _make_chunk(
+            text="Guideline for diabetes management.",
+            chunk_id="diabetes_001",
+            extracted_entities=["Disease:diabetes"],
+        )
+        headache_chunk = _make_chunk(
+            text="Headache treatment protocol.",
+            chunk_id="headache_001",
+            extracted_entities=["Symptom:headache"],
+        )
+
+        mock_store.add_chunks([fever_chunk, diabetes_chunk, headache_chunk])
+
+        results = mock_store.search("fever treatment", top_k=2)
+
+        assert len(results) == 2
+        assert results[0]["chunk_id"] == "fever_001"
+        assert "fever" in results[0]["text"].lower()
+
+    def test_search_respects_limit_and_payload(self, mock_store: QdrantStore):
+        """search should cap results at top_k and return metadata."""
+        chunks = _make_chunks(5)
+        mock_store.add_chunks(chunks)
+
+        results = mock_store.search("diabetes", top_k=3)
+
+        assert len(results) == 3
+        for res in results:
+            assert "score" in res
+            assert "payload" in res
 
 
 # ---------------------------------------------------------------------------
