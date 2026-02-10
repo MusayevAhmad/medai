@@ -109,22 +109,23 @@
 **Goal**: Add table and chart understanding.
 
 ### Tasks
-- [ ] **Task 4.1**: Integrate LlamaParse for table extraction
-  - Replace PyMuPDF with LlamaParse for documents with tables
+- [x] **Task 4.1**: Table extraction with PyMuPDF
+  - Used PyMuPDF's built-in `find_tables()` for local table detection (no cloud API needed)
   - Convert extracted tables to Markdown format
-  - Store tables as separate chunks with `chunk_type: "table"` metadata
+  - Store tables as separate chunks with `chunk_type: "table"` metadata + caption detection
 
-- [ ] **Task 4.2**: Add figure detection
-  - Use a YOLO model to detect "Figure X" regions in PDFs
-  - Crop images and save to `data/figures/`
-  - Generate captions using a vision model (LLaVA or GPT-4V)
-  - Store captions as searchable text with `chunk_type: "figure"` metadata
+- [x] **Task 4.2**: Figure detection and extraction
+  - PyMuPDF `get_images()` extracts figures, filtered by size (min 100x100px, 5KB)
+  - Saved to `data/figures/` as PNG/JPEG (67 figures from 20 PDFs)
+  - Automatic caption detection via "Figure N:" regex pattern matching
+  - Store captions as searchable text with `chunk_type: "figure"` metadata + image path
 
-- [ ] **Task 4.3**: Implement visual retrieval
-  - When user asks "show me the survival curve", retrieve the figure image
-  - Return both the caption AND the image URL in the API response
+- [x] **Task 4.3**: Visual retrieval endpoint
+  - New `POST /visual-search` endpoint with chunk_type filtering
+  - Returns text, tables, and figures with type metadata, captions, and image paths
+  - Updated vector store payload to include `chunk_type`, `image_path`, `caption`
 
-**Deliverable**: System can answer "What does Table 2 show?" by retrieving the table content.
+**Deliverable**: `POST /visual-search?chunk_types=["table"]` returns table content in Markdown format.
 
 ---
 

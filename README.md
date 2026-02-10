@@ -6,7 +6,7 @@ The system combines a fine-tuned BioBERT NER model (for extracting diseases, che
 
 ## Current Status
 
-**Phases 1 and 2 are complete.** The NER model, ingestion pipeline, FastAPI backend with entity-filtered retrieval, LLM answer generation, guardrails, and Docker setup are all functional. Phase 3 (Evaluation Framework with RAGAS) is next. See [ROADMAP.md](ROADMAP.md) for the full development plan.
+**Phases 1–4 are complete.** The system includes: NER model, ingestion pipeline, FastAPI backend with entity-filtered retrieval, LLM answer generation (Ollama), Docker setup, RAGAS evaluation framework with MLflow tracking, and multimodal ingestion (tables + figures). Phase 5 (LangGraph Agent) is next. See [ROADMAP.md](ROADMAP.md) for the full plan.
 
 ## Quick Start
 
@@ -97,6 +97,7 @@ medai/
 │   ├── vector_store.py        # Qdrant vector store (add, search, filtered search)
 │   ├── retrieve.py            # Hybrid retrieval (NER entity filtering + semantic)
 │   ├── llm.py                 # OpenAI-compatible LLM client for answer generation
+│   ├── multimodal_ingest.py   # Phase 4: text + table + figure extraction from PDFs
 │   ├── image_model.py         # X-ray CNN classifier (transfer learning)
 │   ├── image_dataset.py       # X-ray image dataset and data loaders
 │   ├── image_train.py         # X-ray model training script
@@ -175,9 +176,9 @@ Entities:
 |-------|-------------|--------|
 | 1 | Entity-Aware Ingestion Pipeline | Complete |
 | 2 | FastAPI Backend + Entity-Filtered Retrieval | Complete |
-| 3 | Evaluation Framework (RAGAS) | Next |
-| 4 | Multimodal Upgrade (tables, figures) | Planned |
-| 5 | LangGraph Agent (multi-step reasoning) | Planned |
+| 3 | Evaluation Framework (RAGAS + MLflow) | Complete |
+| 4 | Multimodal Upgrade (tables, figures) | Complete |
+| 5 | LangGraph Agent (multi-step reasoning) | Next |
 | 6 | Azure Deployment | Planned |
 | 7 | Fine-Tuning Experiment (RAG vs RAG+FT) | Planned |
 | 8 | Research Contribution | Planned |

@@ -27,6 +27,7 @@ from tqdm import tqdm
 # -------------------------------------------------------------------
 
 SAMPLE_PDFS: List[Tuple[str, str]] = [
+    # ---- Batch 1: Original 10 PDFs ----
     # Europe PMC open-access articles (no auth required, CC-BY)
     (
         "EPMC_Diabetes_Type2_Review.pdf",
@@ -67,6 +68,47 @@ SAMPLE_PDFS: List[Tuple[str, str]] = [
     (
         "EPMC_COVID19_Clinical_Review.pdf",
         "https://europepmc.org/backend/ptpmcrender.fcgi?accid=PMC7169770&blobtype=pdf",
+    ),
+    # ---- Batch 2: 10 additional PDFs for broader coverage ----
+    (
+        "EPMC_Stroke_Management.pdf",
+        "https://europepmc.org/backend/ptpmcrender.fcgi?accid=PMC6935818&blobtype=pdf",
+    ),
+    (
+        "EPMC_COPD_Review.pdf",
+        "https://europepmc.org/backend/ptpmcrender.fcgi?accid=PMC6400111&blobtype=pdf",
+    ),
+    (
+        "EPMC_Rheumatoid_Arthritis.pdf",
+        "https://europepmc.org/backend/ptpmcrender.fcgi?accid=PMC6422329&blobtype=pdf",
+    ),
+    (
+        "EPMC_Epilepsy_Treatment.pdf",
+        "https://europepmc.org/backend/ptpmcrender.fcgi?accid=PMC6723954&blobtype=pdf",
+    ),
+    (
+        "EPMC_HIV_Treatment_Review.pdf",
+        "https://europepmc.org/backend/ptpmcrender.fcgi?accid=PMC6541416&blobtype=pdf",
+    ),
+    (
+        "EPMC_Liver_Disease_Review.pdf",
+        "https://europepmc.org/backend/ptpmcrender.fcgi?accid=PMC6826798&blobtype=pdf",
+    ),
+    (
+        "EPMC_Kidney_Disease_CKD.pdf",
+        "https://europepmc.org/backend/ptpmcrender.fcgi?accid=PMC7004228&blobtype=pdf",
+    ),
+    (
+        "EPMC_Tuberculosis_Review.pdf",
+        "https://europepmc.org/backend/ptpmcrender.fcgi?accid=PMC6548090&blobtype=pdf",
+    ),
+    (
+        "EPMC_Malaria_Treatment.pdf",
+        "https://europepmc.org/backend/ptpmcrender.fcgi?accid=PMC6425757&blobtype=pdf",
+    ),
+    (
+        "EPMC_Sepsis_Management.pdf",
+        "https://europepmc.org/backend/ptpmcrender.fcgi?accid=PMC6429642&blobtype=pdf",
     ),
 ]
 

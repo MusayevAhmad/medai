@@ -36,22 +36,19 @@ You are working on BioScholar, an AI-powered clinical evidence research assistan
 - `app/dependencies.py`: Singleton management for NER, vector store, retriever, LLM.
 - `eval/`: Evaluation scripts must be runnable via `make eval` command.
 
-## Current Phase: Phase 4 (Multimodal Upgrade)
-**Goal**: Add table and chart understanding.
+## Current Phase: Phase 5 (LangGraph Agent)
+**Goal**: Multi-step reasoning for complex questions.
 
 ### Completed Phases
 - **Phase 1** (Entity-Aware Ingestion): NER inference, PDF ingestion, Qdrant vector store, retrieval, ingestion script — all done.
 - **Phase 2** (FastAPI Backend): FastAPI app (`app/main.py`), hybrid retrieval (`src/retrieve.py`), LLM integration (`src/llm.py`), guardrails, query logging, Dockerfile + docker-compose — all done.
-- **Phase 3** (Evaluation Framework): RAGAS-style metrics (`eval/ragas_eval.py`), custom medical metrics (`eval/medical_metrics.py`), MLflow tracking (`eval/run_eval.py`), gold set template — all done.
+- **Phase 3** (Evaluation Framework): RAGAS-style metrics, custom medical metrics, MLflow tracking, 50-question gold set — all done. Ollama running with llama3.2.
+- **Phase 4** (Multimodal Upgrade): Table extraction (33 tables), figure extraction (67 figures from 20 PDFs), visual retrieval API endpoint — all done.
 
 ### Immediate Tasks
-1. Integrate LlamaParse for table extraction from PDFs
-2. Add figure detection with YOLO and caption generation
-3. Implement visual retrieval for figures and tables
-
-### Pending Setup
-- **Ollama**: Required for full RAG evaluation. Install: `brew install ollama && ollama serve && ollama pull llama3.2`
-- **Gold set expansion**: Expand `data/eval/gold_set_v1.csv` from 10 seed Q&A pairs to 50
+1. Design agent workflow with LangGraph StateGraph
+2. Add tools: search_guidelines, lookup_drug_interaction, summarize_section
+3. Add observability (LangSmith or Arize Phoenix)
 
 ## Dependency Management
 - Add new dependencies to `requirements.txt` with version pinning (e.g., `qdrant-client==1.7.0`)

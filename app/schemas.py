@@ -107,3 +107,43 @@ class QueryResponse(BaseModel):
     query_entities: List[EntityOut]
     model: str = Field(..., description="LLM model used for answer generation")
     retrieval_count: int = Field(..., description="Number of chunks used as context")
+
+
+# ---------------------------------------------------------------------------
+# /visual-search endpoint (Phase 4 — multimodal)
+# ---------------------------------------------------------------------------
+
+class VisualSearchRequest(BaseModel):
+    """Request body for the /visual-search endpoint."""
+
+    query: str = Field(..., min_length=1, description="Search query (e.g. 'show me Table 2')")
+    top_k: int = Field(5, ge=1, le=20, description="Number of results")
+    chunk_types: Optional[List[str]] = Field(
+        None,
+        description="Filter by chunk type: 'text', 'table', 'figure'. None returns all types.",
+    )
+
+
+class VisualResult(BaseModel):
+    """A single visual search result."""
+
+    chunk_id: str
+    text: str
+    score: float
+    source_file: str
+    page_number: int
+    chunk_type: str = Field("text", description="Type: text, table, or figure")
+    image_path: Optional[str] = Field(None, description="Path to figure image (if chunk_type=figure)")
+    caption: Optional[str] = Field(None, description="Table/figure caption")
+    extracted_entities: List[str] = Field(default_factory=list)
+
+
+class VisualSearchResponse(BaseModel):
+    """Response from the /visual-search endpoint."""
+
+    query: str
+    query_entities: List[EntityOut]
+    results: List[VisualResult]
+    count: int
+    tables_found: int = Field(0, description="Number of table results")
+    figures_found: int = Field(0, description="Number of figure results")

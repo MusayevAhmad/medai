@@ -16,6 +16,7 @@ from typing import List
 from tqdm import tqdm
 
 from src.ingest import process_pdf
+from src.multimodal_ingest import process_pdf_multimodal
 from src.inference import MedicalNER
 from src.vector_store import QdrantStore
 
@@ -72,6 +73,16 @@ def parse_args() -> argparse.Namespace:
         default=64,
         help="Number of chunks to embed per batch.",
     )
+    parser.add_argument(
+        "--multimodal",
+        action="store_true",
+        help="Enable multimodal ingestion (extract tables and figures).",
+    )
+    parser.add_argument(
+        "--figures-dir",
+        default="data/figures",
+        help="Directory to save extracted figure images.",
+    )
     return parser.parse_args()
 
 
@@ -92,18 +103,30 @@ def ingest_all(
     overlap: int,
     threshold: float,
     batch_size: int,
+    multimodal: bool = False,
+    figures_dir: Path = Path("data/figures"),
 ) -> int:
     """Ingest all PDFs and return total chunks inserted."""
     total_inserted = 0
     for pdf_path in tqdm(pdf_paths, desc="Ingesting PDFs"):
         try:
-            chunks = process_pdf(
-                pdf_path,
-                ner=ner,
-                max_tokens=max_tokens,
-                overlap=overlap,
-                threshold=threshold,
-            )
+            if multimodal:
+                chunks = process_pdf_multimodal(
+                    pdf_path,
+                    ner=ner,
+                    max_tokens=max_tokens,
+                    overlap=overlap,
+                    threshold=threshold,
+                    figures_dir=figures_dir,
+                )
+            else:
+                chunks = process_pdf(
+                    pdf_path,
+                    ner=ner,
+                    max_tokens=max_tokens,
+                    overlap=overlap,
+                    threshold=threshold,
+                )
             inserted = store.add_chunks(chunks, batch_size=batch_size)
             total_inserted += inserted
         except Exception as exc:
@@ -139,6 +162,8 @@ def main() -> None:
         overlap=args.overlap,
         threshold=args.threshold,
         batch_size=args.batch_size,
+        multimodal=args.multimodal,
+        figures_dir=Path(args.figures_dir),
     )
 
     print(f"Done. Inserted {total_inserted} chunks into '{args.collection_name}'.")

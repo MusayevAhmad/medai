@@ -42,6 +42,9 @@ from app.schemas import (
     SearchRequest,
     SearchResponse,
     SearchResult,
+    VisualResult,
+    VisualSearchRequest,
+    VisualSearchResponse,
 )
 
 # ---------------------------------------------------------------------------
@@ -295,4 +298,65 @@ async def query(req: QueryRequest):
     )
 
     _log_query("/query", req.model_dump(), result.model_dump())
+    return result
+
+
+@app.post("/visual-search", response_model=VisualSearchResponse)
+async def visual_search(req: VisualSearchRequest):
+    """Search for text, tables, and figures with optional type filtering.
+
+    Use this endpoint to find tables ("show me Table 2") or figures
+    ("survival curve") alongside regular text results.
+    """
+    if _check_prompt_injection(req.query):
+        raise HTTPException(status_code=400, detail="Input rejected by safety filter.")
+
+    retriever = get_retriever()
+    search_result = retriever.search(
+        query=req.query,
+        top_k=req.top_k,
+        entity_filter=True,
+    )
+
+    results: list = []
+    for r in search_result["results"]:
+        chunk_type = r.get("chunk_type", "text")
+
+        # Filter by requested chunk types
+        if req.chunk_types and chunk_type not in req.chunk_types:
+            continue
+
+        results.append(VisualResult(
+            chunk_id=r.get("chunk_id", ""),
+            text=r.get("text", ""),
+            score=round(r.get("score", 0.0), 4),
+            source_file=r.get("source_file", ""),
+            page_number=r.get("page_number", 0),
+            chunk_type=chunk_type,
+            image_path=r.get("image_path"),
+            caption=r.get("caption"),
+            extracted_entities=r.get("extracted_entities", []),
+        ))
+
+    tables_found = sum(1 for r in results if r.chunk_type == "table")
+    figures_found = sum(1 for r in results if r.chunk_type == "figure")
+
+    result = VisualSearchResponse(
+        query=req.query,
+        query_entities=[
+            EntityOut(
+                text=e.text,
+                label=e.label,
+                confidence=round(e.confidence, 4),
+                span=list(e.span),
+            )
+            for e in search_result["query_entities"]
+        ],
+        results=results,
+        count=len(results),
+        tables_found=tables_found,
+        figures_found=figures_found,
+    )
+
+    _log_query("/visual-search", req.model_dump(), result.model_dump())
     return result

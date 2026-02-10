@@ -172,6 +172,10 @@ class QdrantStore:
                     "extracted_entities": chunk.metadata.get(
                         "extracted_entities", []
                     ),
+                    # Multimodal metadata (Phase 4)
+                    "chunk_type": chunk.metadata.get("chunk_type", "text"),
+                    "image_path": chunk.metadata.get("image_path", ""),
+                    "caption": chunk.metadata.get("caption", ""),
                 }
                 points.append(
                     PointStruct(
