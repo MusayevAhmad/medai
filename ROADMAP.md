@@ -133,9 +133,13 @@
 **Goal**: Multi-step reasoning for complex questions.
 
 ### Tasks
-- [ ] **Task 5.1**: Design agent workflow
-  - Decompose: "Compare Drug A and Drug B" → [Query 1: "Drug A", Query 2: "Drug B"]
-  - Implement using LangGraph's StateGraph
+- [x] **Task 5.1**: Design agent workflow
+  - ReAct-pattern StateGraph: agent → tools → agent (loop until final answer)
+  - LLM-driven query decomposition via system prompt
+  - Complexity auto-detection (regex patterns + NER entity counting)
+  - Custom tool executor captures structured citations in state
+  - `/query` endpoint upgraded with `use_agent` flag (auto/true/false)
+  - Robust arg parsing handles small-model tool-call quirks
 
 - [ ] **Task 5.2**: Add tools
   - `search_guidelines(query)`: Existing retrieval

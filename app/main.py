@@ -26,6 +26,7 @@ from typing import List
 from fastapi import FastAPI, HTTPException
 
 from app.dependencies import (
+    get_agent_graph,
     get_llm,
     get_ner,
     get_retriever,
@@ -228,12 +229,101 @@ async def search(req: SearchRequest):
 
 @app.post("/query", response_model=QueryResponse)
 async def query(req: QueryRequest):
-    """Full RAG pipeline: NER + retrieval + LLM answer generation."""
+    """Full RAG pipeline: NER + retrieval + LLM answer generation.
+
+    Automatically routes complex questions (comparisons, multi-entity)
+    through the LangGraph agent for multi-step reasoning.  Simple
+    questions use the fast single-pass pipeline.
+
+    Set ``use_agent`` to override auto-detection:
+    - ``null`` (default): auto-detect complexity
+    - ``true``: always use the agent
+    - ``false``: always use the fast pipeline
+    """
     if _check_prompt_injection(req.question):
         raise HTTPException(status_code=400, detail="Input rejected by safety filter.")
 
     retriever = get_retriever()
     llm = get_llm()
+    ner = get_ner()
+
+    # ------------------------------------------------------------------
+    # Decide whether to use the agent
+    # ------------------------------------------------------------------
+    agent_graph = get_agent_graph()
+
+    if req.use_agent is True:
+        use_agent = agent_graph is not None
+    elif req.use_agent is False:
+        use_agent = False
+    else:
+        # Auto-detect: extract entities and check complexity
+        from src.agent import is_complex_query
+
+        query_entities = ner.predict_entities(req.question, threshold=0.3)
+        use_agent = agent_graph is not None and is_complex_query(
+            req.question, query_entities
+        )
+
+    # ------------------------------------------------------------------
+    # Agent path — multi-step reasoning
+    # ------------------------------------------------------------------
+    if use_agent and agent_graph is not None:
+        from src.agent import run_agent
+
+        logger.info("Routing to agent pipeline: %r", req.question)
+        agent_result = run_agent(agent_graph, req.question)
+
+        answer = agent_result["answer"]
+        agent_steps = agent_result["steps"]
+
+        # Build citations from agent-accumulated structured data
+        citations = [
+            Citation(
+                source_file=c.get("source_file", ""),
+                page_number=c.get("page_number", 0),
+                chunk_id=c.get("chunk_id", ""),
+                score=c.get("score", 0.0),
+                text_preview=c.get("text_preview", ""),
+                extracted_entities=c.get("extracted_entities", []),
+            )
+            for c in agent_result["citations"]
+        ]
+
+        # Extract entities from the original question for the response
+        query_entities_out = []
+        try:
+            entities = ner.predict_entities(req.question, threshold=0.3)
+            query_entities_out = [
+                EntityOut(
+                    text=e.text,
+                    label=e.label,
+                    confidence=round(e.confidence, 4),
+                    span=list(e.span),
+                )
+                for e in entities
+            ]
+        except Exception:
+            pass
+
+        result = QueryResponse(
+            question=req.question,
+            answer=answer,
+            citations=citations,
+            query_entities=query_entities_out,
+            model=llm.model,
+            retrieval_count=len(citations),
+            agent_used=True,
+            agent_steps=agent_steps,
+        )
+
+        _log_query("/query", req.model_dump(), result.model_dump())
+        return result
+
+    # ------------------------------------------------------------------
+    # Fast path — single-pass RAG pipeline
+    # ------------------------------------------------------------------
+    logger.info("Using fast pipeline: %r", req.question)
 
     # Step 1: Retrieve relevant chunks
     search_result = retriever.search(
@@ -295,6 +385,8 @@ async def query(req: QueryRequest):
         ],
         model=llm.model,
         retrieval_count=len(chunks),
+        agent_used=False,
+        agent_steps=None,
     )
 
     _log_query("/query", req.model_dump(), result.model_dump())

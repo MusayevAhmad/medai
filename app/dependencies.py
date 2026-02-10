@@ -2,14 +2,15 @@
 Shared dependencies for the FastAPI application.
 
 Manages singleton instances of the NER model, vector store, retriever,
-and LLM client. Uses module-level state initialised at startup.
+LLM client, and LangGraph agent. Uses module-level state initialised
+at startup.
 """
 
 import glob
 import logging
 import os
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -18,6 +19,7 @@ _ner: Optional["MedicalNER"] = None
 _store: Optional["QdrantStore"] = None
 _retriever: Optional["HybridRetriever"] = None
 _llm: Optional["LLMClient"] = None
+_agent_graph: Optional[Any] = None
 
 
 def _find_latest_model() -> str:
@@ -89,6 +91,25 @@ def init_dependencies(
     _llm = LLMClient(base_url=llm_base_url, model=llm_model)
     logger.info("LLM client configured: %s (model=%s)", llm_base_url, llm_model)
 
+    # LangGraph agent
+    global _agent_graph
+    try:
+        from langchain_ollama import ChatOllama
+        from src.agent import build_agent_graph
+
+        # ChatOllama expects the base Ollama URL (without /v1 suffix)
+        ollama_base = llm_base_url.replace("/v1", "")
+        agent_llm = ChatOllama(
+            model=llm_model,
+            base_url=ollama_base,
+            temperature=0.1,
+        )
+        _agent_graph = build_agent_graph(llm=agent_llm, retriever=_retriever)
+        logger.info("LangGraph agent initialised (model=%s)", llm_model)
+    except Exception as exc:
+        logger.warning("Failed to initialise LangGraph agent: %s", exc)
+        _agent_graph = None
+
 
 def get_ner() -> "MedicalNER":
     """Return the shared NER model instance."""
@@ -116,3 +137,8 @@ def get_llm() -> "LLMClient":
     if _llm is None:
         raise RuntimeError("Dependencies not initialised. Call init_dependencies() first.")
     return _llm
+
+
+def get_agent_graph() -> Optional[Any]:
+    """Return the compiled LangGraph agent, or None if unavailable."""
+    return _agent_graph

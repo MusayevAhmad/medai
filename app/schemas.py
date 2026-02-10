@@ -96,6 +96,14 @@ class QueryRequest(BaseModel):
     top_k: int = Field(5, ge=1, le=20, description="Number of context chunks to retrieve")
     entity_filter: bool = Field(True, description="Use NER-based entity filtering")
     score_threshold: float = Field(0.3, ge=0.0, le=1.0, description="Minimum retrieval score")
+    use_agent: Optional[bool] = Field(
+        None,
+        description=(
+            "Route through the LangGraph agent for multi-step reasoning. "
+            "None = auto-detect (uses agent for comparison/complex queries), "
+            "True = always use agent, False = never use agent."
+        ),
+    )
 
 
 class QueryResponse(BaseModel):
@@ -107,6 +115,8 @@ class QueryResponse(BaseModel):
     query_entities: List[EntityOut]
     model: str = Field(..., description="LLM model used for answer generation")
     retrieval_count: int = Field(..., description="Number of chunks used as context")
+    agent_used: bool = Field(False, description="Whether the LangGraph agent was used")
+    agent_steps: Optional[int] = Field(None, description="Number of agent reasoning steps (if agent was used)")
 
 
 # ---------------------------------------------------------------------------
