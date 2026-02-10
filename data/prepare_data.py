@@ -15,10 +15,21 @@ import json
 import os
 import sys
 from pathlib import Path
-from typing import Dict, List, Tuple, Any
+from typing import Any, Dict, List, Tuple
 import re
 
 import pandas as pd
+
+# Configure Hugging Face cache inside the repo to avoid permission issues
+PROJECT_ROOT = Path(__file__).parent.parent
+HF_CACHE = PROJECT_ROOT / "data" / "hf_cache"
+HF_CACHE.mkdir(parents=True, exist_ok=True)
+os.environ.setdefault("HF_HOME", str(HF_CACHE))
+os.environ.setdefault("HF_DATASETS_CACHE", str(HF_CACHE / "datasets"))
+os.environ.setdefault("HF_HUB_CACHE", str(HF_CACHE / "hub"))
+os.environ.setdefault("HF_MODULES_CACHE", str(HF_CACHE / "modules"))
+os.environ.setdefault("TRANSFORMERS_CACHE", str(HF_CACHE / "hub"))
+
 from datasets import Dataset, DatasetDict, load_dataset
 
 # Add parent directory to path for imports

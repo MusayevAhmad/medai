@@ -32,6 +32,18 @@ except ImportError:
 # Alias for type hints
 PreTrainedTokenizer = PreTrainedTokenizerBase
 
+
+def _ensure_hf_cache() -> None:
+    """Configure Hugging Face cache inside the repo to avoid permission issues."""
+    project_root = Path(__file__).parent.parent
+    hf_cache = project_root / "data" / "hf_cache"
+    hf_cache.mkdir(parents=True, exist_ok=True)
+    os.environ.setdefault("HF_HOME", str(hf_cache))
+    os.environ.setdefault("HF_DATASETS_CACHE", str(hf_cache / "datasets"))
+    os.environ.setdefault("HF_HUB_CACHE", str(hf_cache / "hub"))
+    os.environ.setdefault("HF_MODULES_CACHE", str(hf_cache / "modules"))
+    os.environ.setdefault("TRANSFORMERS_CACHE", str(hf_cache / "hub"))
+
 # Optional PEFT import
 try:
     from peft import (
@@ -145,6 +157,7 @@ def create_model(
     Returns:
         Tuple of (model, tokenizer, label_to_id, id_to_label)
     """
+    _ensure_hf_cache()
     # Handle config
     if config is None:
         config = ModelConfig()
@@ -277,6 +290,7 @@ def load_model(
     Returns:
         Tuple of (model, tokenizer, label_to_id, id_to_label)
     """
+    _ensure_hf_cache()
     if device is None:
         device = get_device()
     

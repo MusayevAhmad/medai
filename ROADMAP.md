@@ -33,7 +33,7 @@
   - Use a simple embedding model: `sentence-transformers/all-MiniLM-L6-v2`
   - Test: Query "fever treatment" and verify it returns relevant chunks
 
-- [ ] **Task 1.5**: Create ingestion script
+- [x] **Task 1.5**: Create ingestion script
   - Write `scripts/ingest_documents.py` that processes all PDFs in `data/raw_pdfs/`
   - Add progress bar (use `tqdm`)
   - Add CLI arg: `--collection-name` to specify Qdrant collection

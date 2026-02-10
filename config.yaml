@@ -28,13 +28,14 @@ labels:
 training:
   batch_size: 8
   eval_batch_size: 16
-  epochs: 3
+  epochs: 7
   learning_rate: 2.0e-4
   weight_decay: 0.01
   warmup_ratio: 0.1
   gradient_accumulation_steps: 1
   max_grad_norm: 1.0
   seed: 42
+  early_stopping_patience: 3
   fp16: false  # Set to true for CUDA, false for MPS/CPU
   
 lora:
@@ -44,16 +45,17 @@ lora:
   dropout: 0.1
   target_modules:
     - "query"
+    - "key"
     - "value"
   bias: "none"
 
 output:
   model_dir: "outputs/models"
   log_dir: "outputs/logs"
-  save_total_limit: 2
-  logging_steps: 50
-  eval_steps: 200
-  save_steps: 200
+  save_total_limit: 3
+  logging_steps: 25
+  eval_steps: 50
+  save_steps: 50
 
 evaluation:
   # Entity matching mode: "strict" or "partial"

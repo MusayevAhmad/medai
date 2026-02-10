@@ -123,6 +123,7 @@ def train(
     lora_r: int = 16,
     lora_alpha: int = 32,
     lora_dropout: float = 0.1,
+    lora_target_modules: Optional[List[str]] = None,
     seed: int = 42,
     logging_steps: int = 50,
     eval_steps: int = 200,
@@ -199,6 +200,7 @@ def train(
         lora_r=lora_r,
         lora_alpha=lora_alpha,
         lora_dropout=lora_dropout,
+        lora_target_modules=lora_target_modules,
     )
     
     print_model_info(model)
@@ -291,7 +293,7 @@ def train(
         args=training_args,
         train_dataset=train_dataset,
         eval_dataset=val_dataset,
-        tokenizer=tokenizer,
+        processing_class=tokenizer,
         data_collator=data_collator,
         compute_metrics=compute_metrics,
         callbacks=[EarlyStoppingCallback(early_stopping_patience=early_stopping_patience)],
@@ -418,8 +420,14 @@ def main():
         "lora_r": config.get("lora", {}).get("r", args.lora_r),
         "lora_alpha": config.get("lora", {}).get("alpha", args.lora_alpha),
         "lora_dropout": config.get("lora", {}).get("dropout", args.lora_dropout),
+        "lora_target_modules": config.get("lora", {}).get("target_modules", None),
         "seed": config.get("training", {}).get("seed", args.seed),
         "fp16": args.fp16 or config.get("training", {}).get("fp16", False),
+        "logging_steps": config.get("output", {}).get("logging_steps", 50),
+        "eval_steps": config.get("output", {}).get("eval_steps", 200),
+        "save_steps": config.get("output", {}).get("save_steps", 200),
+        "save_total_limit": config.get("output", {}).get("save_total_limit", 2),
+        "early_stopping_patience": config.get("training", {}).get("early_stopping_patience", 3),
     }
     
     # Run training

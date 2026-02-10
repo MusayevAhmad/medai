@@ -9,6 +9,7 @@ outputs/
 # Data files
 data/processed/
 data/xray/
+data/hf_cache/
 *.arrow
 
 # Results
