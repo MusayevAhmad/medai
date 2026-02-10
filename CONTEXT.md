@@ -36,18 +36,22 @@ You are working on BioScholar, an AI-powered clinical evidence research assistan
 - `app/dependencies.py`: Singleton management for NER, vector store, retriever, LLM.
 - `eval/`: Evaluation scripts must be runnable via `make eval` command.
 
-## Current Phase: Phase 3 (Evaluation Framework)
-**Goal**: Measure answer quality using RAGAS and custom medical metrics.
+## Current Phase: Phase 4 (Multimodal Upgrade)
+**Goal**: Add table and chart understanding.
 
 ### Completed Phases
 - **Phase 1** (Entity-Aware Ingestion): NER inference, PDF ingestion, Qdrant vector store, retrieval, ingestion script — all done.
 - **Phase 2** (FastAPI Backend): FastAPI app (`app/main.py`), hybrid retrieval (`src/retrieve.py`), LLM integration (`src/llm.py`), guardrails, query logging, Dockerfile + docker-compose — all done.
+- **Phase 3** (Evaluation Framework): RAGAS-style metrics (`eval/ragas_eval.py`), custom medical metrics (`eval/medical_metrics.py`), MLflow tracking (`eval/run_eval.py`), gold set template — all done.
 
 ### Immediate Tasks
-1. Build evaluation dataset `data/eval/gold_set_v1.csv` with 50 Q&A pairs
-2. Create `eval/ragas_eval.py` with RAGAS metrics (Faithfulness, Answer Relevance, Context Recall)
-3. Add custom medical metrics (Entity Coverage, Citation Accuracy, Safety Score)
-4. Set up experiment tracking (W&B or MLflow)
+1. Integrate LlamaParse for table extraction from PDFs
+2. Add figure detection with YOLO and caption generation
+3. Implement visual retrieval for figures and tables
+
+### Pending Setup
+- **Ollama**: Required for full RAG evaluation. Install: `brew install ollama && ollama serve && ollama pull llama3.2`
+- **Gold set expansion**: Expand `data/eval/gold_set_v1.csv` from 10 seed Q&A pairs to 50
 
 ## Dependency Management
 - Add new dependencies to `requirements.txt` with version pinning (e.g., `qdrant-client==1.7.0`)

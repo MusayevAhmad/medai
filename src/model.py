@@ -305,20 +305,28 @@ def load_model(
     if adapter_config_path.exists() and PEFT_AVAILABLE:
         print(f"Loading PEFT/LoRA model from {model_path}")
         
-        # Load the base model first
-        # The adapter config tells us the base model name
         import json
+
+        # Load the adapter config for base model name
         with open(adapter_config_path, "r") as f:
             adapter_config = json.load(f)
         
         base_model_name = adapter_config.get("base_model_name_or_path", "dmis-lab/biobert-base-cased-v1.2")
         
-        # Get config for label mappings
-        config = AutoConfig.from_pretrained(model_path)
-        id_to_label = config.id2label
-        label_to_id = config.label2id
+        # Get label mappings — prefer label_info.json (saved by save_model),
+        # fall back to config.json (standard HF format)
+        label_info_path = model_path / "label_info.json"
+        if label_info_path.exists():
+            with open(label_info_path, "r") as f:
+                label_info = json.load(f)
+            label_to_id = label_info["label_to_id"]
+            id_to_label = {int(k): v for k, v in label_info["id_to_label"].items()}
+        else:
+            config = AutoConfig.from_pretrained(model_path)
+            id_to_label = config.id2label
+            label_to_id = config.label2id
         
-        # Load base model
+        # Load base model with correct label count
         base_model = AutoModelForTokenClassification.from_pretrained(
             base_model_name,
             num_labels=len(id_to_label),
