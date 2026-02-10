@@ -1,0 +1,1 @@
+"""BioScholar FastAPI application."""

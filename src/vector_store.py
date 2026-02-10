@@ -27,6 +27,9 @@ from uuid import uuid4
 from qdrant_client import QdrantClient
 from qdrant_client.models import (
     Distance,
+    FieldCondition,
+    Filter,
+    MatchAny,
     PointStruct,
     VectorParams,
 )
@@ -250,6 +253,80 @@ class QdrantStore:
             )
             raw_results = response.points
 
+        return self._format_results(raw_results, with_payload)
+
+    def search_with_filters(
+        self,
+        query: str,
+        entity_keys: Optional[List[str]] = None,
+        top_k: int = 5,
+        score_threshold: float = 0.0,
+    ) -> List[Dict]:
+        """Retrieve chunks using semantic search with optional entity filtering.
+
+        When *entity_keys* is provided, results are restricted to chunks
+        whose ``extracted_entities`` payload contains at least one of the
+        given entity strings (e.g. ``["Disease:fever", "Chemical:aspirin"]``).
+
+        Args:
+            query: Natural-language query text.
+            entity_keys: Entity strings to filter on (format ``"Label:text"``).
+                         If empty or *None*, no filtering is applied.
+            top_k: Number of results to return.
+            score_threshold: Minimum cosine similarity score.
+
+        Returns:
+            Filtered list of result dicts sorted by score.
+        """
+        if not query:
+            return []
+
+        query_vector = self.embedder.encode(
+            [query], show_progress_bar=False
+        )[0].tolist()
+
+        # Build Qdrant filter
+        query_filter = None
+        if entity_keys:
+            query_filter = Filter(
+                should=[
+                    FieldCondition(
+                        key="extracted_entities",
+                        match=MatchAny(any=entity_keys),
+                    )
+                ]
+            )
+
+        if hasattr(self.client, "search"):
+            raw_results = self.client.search(
+                collection_name=self.collection_name,
+                query_vector=query_vector,
+                query_filter=query_filter,
+                limit=top_k,
+                score_threshold=score_threshold if score_threshold > 0 else None,
+                with_payload=True,
+            )
+        else:
+            from qdrant_client.models import Query
+            response = self.client.query_points(
+                collection_name=self.collection_name,
+                query=query_vector,
+                query_filter=query_filter,
+                limit=top_k,
+                score_threshold=score_threshold if score_threshold > 0 else None,
+                with_payload=True,
+            )
+            raw_results = response.points
+
+        return self._format_results(raw_results, with_payload=True)
+
+    # ------------------------------------------------------------------
+    # Helpers
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _format_results(raw_results, with_payload: bool = True) -> List[Dict]:
+        """Convert raw Qdrant hits into plain dicts."""
         formatted: List[Dict] = []
         for hit in raw_results:
             payload = hit.payload or {}
@@ -264,5 +341,4 @@ class QdrantStore:
                     "payload": payload if with_payload else {},
                 }
             )
-
         return formatted
