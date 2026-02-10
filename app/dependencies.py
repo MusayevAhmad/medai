@@ -36,6 +36,7 @@ def init_dependencies(
     model_path: Optional[str] = None,
     collection_name: str = "bio_guidelines",
     qdrant_path: str = "data/qdrant_db",
+    qdrant_url: Optional[str] = None,
     llm_base_url: str = "http://localhost:11434/v1",
     llm_model: str = "llama3.2",
 ) -> None:
@@ -48,6 +49,8 @@ def init_dependencies(
         model_path: Path to trained NER model. Auto-detects latest if None.
         collection_name: Qdrant collection name.
         qdrant_path: Local Qdrant storage path (persistent, no Docker).
+        qdrant_url: Remote Qdrant URL (e.g. http://qdrant:6333). Takes
+            precedence over *qdrant_path* when set.
         llm_base_url: Base URL for the OpenAI-compatible LLM API.
         llm_model: LLM model name.
     """
@@ -61,13 +64,20 @@ def init_dependencies(
     from src.inference import MedicalNER
     _ner = MedicalNER(model_path=model_path, verbose=True)
 
-    # Vector store
-    logger.info("Connecting to Qdrant (path=%s, collection=%s)", qdrant_path, collection_name)
+    # Vector store — prefer remote URL (Docker) over local path
     from src.vector_store import QdrantStore
-    _store = QdrantStore(
-        collection_name=collection_name,
-        qdrant_path=qdrant_path,
-    )
+    if qdrant_url:
+        logger.info("Connecting to Qdrant (url=%s, collection=%s)", qdrant_url, collection_name)
+        _store = QdrantStore(
+            collection_name=collection_name,
+            qdrant_url=qdrant_url,
+        )
+    else:
+        logger.info("Connecting to Qdrant (path=%s, collection=%s)", qdrant_path, collection_name)
+        _store = QdrantStore(
+            collection_name=collection_name,
+            qdrant_path=qdrant_path,
+        )
     logger.info("Qdrant collection '%s' has %d chunks", collection_name, _store.count())
 
     # Hybrid retriever

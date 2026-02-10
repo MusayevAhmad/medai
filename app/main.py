@@ -105,10 +105,16 @@ async def lifespan(app: FastAPI):
     """Load models and connect to Qdrant on startup."""
     logger.info("Starting BioScholar API...")
 
+    # Build Qdrant URL from QDRANT_HOST/PORT if set (Docker), else use local path
+    qdrant_host = os.environ.get("QDRANT_HOST")
+    qdrant_port = os.environ.get("QDRANT_PORT", "6333")
+    qdrant_url = f"http://{qdrant_host}:{qdrant_port}" if qdrant_host else None
+
     init_dependencies(
-        model_path=os.environ.get("NER_MODEL_PATH"),
+        model_path=os.environ.get("NER_MODEL_PATH") or None,
         collection_name=os.environ.get("QDRANT_COLLECTION", "bio_guidelines"),
         qdrant_path=os.environ.get("QDRANT_PATH", "data/qdrant_db"),
+        qdrant_url=qdrant_url,
         llm_base_url=os.environ.get("LLM_BASE_URL", "http://localhost:11434/v1"),
         llm_model=os.environ.get("LLM_MODEL", "llama3.2"),
     )

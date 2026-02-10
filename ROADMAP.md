@@ -46,31 +46,30 @@
 **Goal**: Build the API and implement "smart search" using NER metadata.
 
 ### Tasks
-- [ ] **Task 2.1**: Create FastAPI app structure
+- [x] **Task 2.1**: Create FastAPI app structure
   - Set up `app/main.py` with health check endpoint
   - Create `app/schemas.py` with Pydantic models: `QueryRequest`, `QueryResponse`, `Citation`
-  - Add `/query` endpoint skeleton (returns mock data)
+  - Add `/entities`, `/search`, and `/query` endpoints with full implementation
 
-- [ ] **Task 2.2**: Implement hybrid retrieval
-  - Extend `vector_store.py` with `search_with_filters(query, entity_filters)`
-  - Process user query through NER to extract entities
-  - Filter Qdrant results: Only return chunks where `metadata.entities` overlaps with query entities
-  - Test: "What treats fever in children?" should prioritize chunks tagged with ["Fever", "Pediatric"]
+- [x] **Task 2.2**: Implement hybrid retrieval
+  - Created `src/retrieve.py` with `HybridRetriever` class
+  - Process user query through NER to extract entities, build filter keys
+  - Filter Qdrant results with entity overlap, automatic fallback to semantic search
 
-- [ ] **Task 2.3**: Add LLM answer generation
-  - Integrate OpenAI API (or Anthropic Claude) for answer synthesis
-  - Prompt template: "Answer the question using ONLY the context below. Cite sources as [Source 1]."
+- [x] **Task 2.3**: Add LLM answer generation
+  - Created `src/llm.py` with `LLMClient` (OpenAI-compatible API — works with Ollama, OpenAI, etc.)
+  - Prompt template enforces grounded answers with `[Source N]` citations
   - Parse citations from LLM response and map back to original PDF pages
 
-- [ ] **Task 2.4**: Add guardrails
-  - Implement prompt injection detection (reject queries containing "ignore previous instructions")
-  - Add retrieval quality check: If top result has score < 0.5, return "No relevant information found"
-  - Log all queries and responses to `outputs/logs/queries.jsonl`
+- [x] **Task 2.4**: Add guardrails
+  - Prompt injection detection with regex patterns in `app/main.py`
+  - Retrieval quality check: Returns "I don't have enough relevant information" below score threshold
+  - All queries and responses logged to `outputs/logs/queries.jsonl`
 
-- [ ] **Task 2.5**: Dockerize the application
-  - Create `Dockerfile` (multi-stage build: deps → model weights → app)
-  - Create `docker-compose.yml` (FastAPI + Qdrant services)
-  - Test: `docker-compose up` should start the full stack
+- [x] **Task 2.5**: Dockerize the application
+  - Created `Dockerfile` (multi-stage build: deps → model weights → app)
+  - Created `docker-compose.yml` (FastAPI + Qdrant services)
+  - Run: `docker-compose up` to start the full stack
 
 **Deliverable**: Working API at `http://localhost:8000/query` that answers medical questions with citations.
 

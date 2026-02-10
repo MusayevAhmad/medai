@@ -14,7 +14,7 @@ import torch.nn.functional as F
 from PIL import Image
 from torchvision import transforms
 
-from image_model import load_model
+from src.image_model import load_model
 
 
 @dataclass

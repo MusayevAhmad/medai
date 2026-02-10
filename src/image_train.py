@@ -20,8 +20,8 @@ from torch.optim.lr_scheduler import CosineAnnealingLR, ReduceLROnPlateau, StepL
 from tqdm import tqdm
 import yaml
 
-from image_dataset import create_data_loaders, compute_class_weights
-from image_model import create_model, save_model, freeze_backbone
+from src.image_dataset import create_data_loaders, compute_class_weights
+from src.image_model import create_model, save_model, freeze_backbone
 
 
 def train_epoch(

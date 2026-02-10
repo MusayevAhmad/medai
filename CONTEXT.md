@@ -29,21 +29,25 @@ You are working on BioScholar, an AI-powered clinical evidence research assistan
 - `src/inference.py`: The NER prediction engine. Must be importable by other modules (not just CLI).
 - `src/ingest.py`: PDF → chunks → NER → Qdrant pipeline. This is the "data prep" layer.
 - `src/retrieve.py`: Handles hybrid search (entity filtering + semantic similarity).
+- `src/llm.py`: OpenAI-compatible LLM client for answer generation. No business logic.
+- `src/vector_store.py`: Qdrant CRUD (add_chunks, search, search_with_filters).
 - `app/main.py`: FastAPI routes. Keep business logic OUT of this file (call functions from src/).
+- `app/schemas.py`: Pydantic request/response models.
+- `app/dependencies.py`: Singleton management for NER, vector store, retriever, LLM.
 - `eval/`: Evaluation scripts must be runnable via `make eval` command.
 
-## Current Phase: Phase 1 (Entity-Aware Ingestion)
-**Goal**: Refactor existing NER model into a reusable component and build the ingestion pipeline.
+## Current Phase: Phase 3 (Evaluation Framework)
+**Goal**: Measure answer quality using RAGAS and custom medical metrics.
+
+### Completed Phases
+- **Phase 1** (Entity-Aware Ingestion): NER inference, PDF ingestion, Qdrant vector store, retrieval, ingestion script — all done.
+- **Phase 2** (FastAPI Backend): FastAPI app (`app/main.py`), hybrid retrieval (`src/retrieve.py`), LLM integration (`src/llm.py`), guardrails, query logging, Dockerfile + docker-compose — all done.
 
 ### Immediate Tasks
-1. Refactor `src/predict.py` into a class-based `src/inference.py` with a `predict_entities(text: str) -> List[Entity]` method
-2. Create `src/ingest.py` with a `process_pdf(pdf_path: Path) -> List[Chunk]` function that:
-   - Extracts text using PyMuPDF
-   - Chunks text (500 tokens with 50 token overlap)
-   - Runs NER on each chunk via `inference.py`
-   - Returns chunks with metadata (source, page, entities)
-3. Set up Qdrant locally and create a `src/vector_store.py` module with `add_chunks()` and `search()` methods
-4. Write a test script `scripts/ingest_test.py` that ingests 1 sample PDF and prints the stored chunks
+1. Build evaluation dataset `data/eval/gold_set_v1.csv` with 50 Q&A pairs
+2. Create `eval/ragas_eval.py` with RAGAS metrics (Faithfulness, Answer Relevance, Context Recall)
+3. Add custom medical metrics (Entity Coverage, Citation Accuracy, Safety Score)
+4. Set up experiment tracking (W&B or MLflow)
 
 ## Dependency Management
 - Add new dependencies to `requirements.txt` with version pinning (e.g., `qdrant-client==1.7.0`)
