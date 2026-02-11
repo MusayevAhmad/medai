@@ -141,10 +141,11 @@
   - `/query` endpoint upgraded with `use_agent` flag (auto/true/false)
   - Robust arg parsing handles small-model tool-call quirks
 
-- [ ] **Task 5.2**: Add tools
-  - `search_guidelines(query)`: Existing retrieval
-  - `lookup_drug_interaction(drug1, drug2)`: External API call
-  - `summarize_section(doc_id, section)`: Extract specific section
+- [x] **Task 5.2**: Add tools
+  - Implemented `src/agent/tools.py` with all three tool interfaces
+  - `search_guidelines(query)`: Wraps existing hybrid retrieval + citations
+  - `lookup_drug_interaction(drug1, drug2)`: RxNav external API call with graceful fallback
+  - `summarize_section(doc_id, section)`: Document-filtered section synthesis + citations
 
 - [ ] **Task 5.3**: Add observability
   - Integrate LangSmith or Arize Phoenix
