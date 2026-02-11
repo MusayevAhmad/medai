@@ -1,7 +1,7 @@
 # BioScholar Makefile
 # Run `make help` to see available targets.
 
-.PHONY: help train ingest eval eval-retrieval mlflow docker clean
+.PHONY: help train ingest eval eval-retrieval mlflow docker clean finetune-data finetune-llm eval-finemodel
 
 PYTHON ?= python
 MODEL_PATH ?= $(shell ls -d outputs/models/run_*/final_model 2>/dev/null | sort | tail -1)
@@ -56,6 +56,28 @@ eval-ragas:  ## Run RAGAS evaluation only
 		--model-path "$(MODEL_PATH)" \
 		--collection-name $(COLLECTION) \
 		--qdrant-path $(QDRANT_PATH)
+
+# ---------------------------------------------------------------------------
+# Phase 7: Fine-Tuning
+# ---------------------------------------------------------------------------
+
+finetune-data:  ## Generate training data from gold set + retrieval
+	$(PYTHON) scripts/generate_finetune_data.py \
+		--qdrant-path $(QDRANT_PATH) \
+		--collection-name $(COLLECTION) \
+		--model-path "$(MODEL_PATH)"
+
+finetune-llm:  ## Fine-tune LLM with QLoRA (use --no-quantize on Apple Silicon)
+	$(PYTHON) scripts/finetune_llm_qlora.py \
+		--data data/finetune/medqa_train.jsonl \
+		--model meta-llama/Llama-3.2-3B-Instruct \
+		--no-quantize
+
+eval-finemodel:  ## Evaluate fine-tuned RAG (set FINETUNE_ADAPTER path)
+	$(PYTHON) eval/run_eval.py \
+		--model-path "$(MODEL_PATH)" \
+		--qdrant-path $(QDRANT_PATH) \
+		--llm-adapter-path "$(FINETUNE_ADAPTER)"
 
 # ---------------------------------------------------------------------------
 # MLflow

@@ -178,10 +178,19 @@
 **Goal**: Compare RAG vs RAG+Fine-tuned model.
 
 ### Tasks
-- [ ] **Task 7.1**: Generate training data from retrieved chunks
-- [ ] **Task 7.2**: Fine-tune Llama-3-8B with QLoRA on medical Q&A
-- [ ] **Task 7.3**: Evaluate: Base RAG vs Fine-tuned RAG
-- [ ] **Task 7.4**: Publish model card on Hugging Face
+- [x] **Task 7.1**: Generate training data from retrieved chunks
+  - Created `scripts/generate_finetune_data.py` — gold set + retrieval → JSONL (instruction/input/output)
+  - Run: `make finetune-data` or `python scripts/generate_finetune_data.py`
+- [x] **Task 7.2**: Fine-tune Llama-3-8B with QLoRA on medical Q&A
+  - Created `scripts/finetune_llm_qlora.py` — TRL SFTTrainer + PEFT QLoRA
+  - Use Llama-3.2-3B on Apple Silicon (--no-quantize), Llama-3.2-8B + QLoRA on CUDA
+  - Run: `make finetune-llm` or `python scripts/finetune_llm_qlora.py`
+- [x] **Task 7.3**: Evaluate: Base RAG vs Fine-tuned RAG
+  - Added `src/llm_local.py` — LocalLLMClient for fine-tuned inference
+  - `eval/run_eval.py --llm-adapter-path outputs/llm_finetune/run_xxx/final_adapter`
+  - Run: `make eval-finemodel FINETUNE_ADAPTER=outputs/llm_finetune/run_xxx/final_adapter`
+- [x] **Task 7.4**: Publish model card on Hugging Face
+  - Created `docs/MODEL_CARD_TEMPLATE.md` — ready for HuggingFace upload
 
 **Deliverable**: Blog post: "Does Fine-Tuning Improve Medical RAG?"
 

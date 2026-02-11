@@ -21,15 +21,24 @@ Usage:
 
 import argparse
 import json
+import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List
 
+# Set project-local HuggingFace cache before any HF imports (for LocalLLMClient)
+_project_root = Path(__file__).parent.parent
+_hf_cache = _project_root / "data" / "hf_cache"
+_hf_cache.mkdir(parents=True, exist_ok=True)
+os.environ["HF_HOME"] = str(_hf_cache)
+os.environ["HF_HUB_CACHE"] = str(_hf_cache / "hub")
+os.environ["TRANSFORMERS_CACHE"] = str(_hf_cache / "hub")
+
 import pandas as pd
 
 # Add project root to path
-sys.path.insert(0, str(Path(__file__).parent.parent))
+sys.path.insert(0, str(_project_root))
 
 from eval.ragas_eval import (
     compute_answer_relevance,
@@ -41,6 +50,7 @@ from eval.ragas_eval import (
 from eval.medical_metrics import compute_medical_metrics
 from src.inference import MedicalNER
 from src.llm import LLMClient
+from src.llm_local import LocalLLMClient
 from src.retrieve import HybridRetriever
 from src.vector_store import QdrantStore
 
@@ -66,9 +76,21 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--top-k", type=int, default=5)
     parser.add_argument("--score-threshold", type=float, default=0.0)
     parser.add_argument("--skip-llm", action="store_true", help="Skip LLM generation")
+    parser.add_argument(
+        "--llm-adapter-path",
+        type=str,
+        default=None,
+        help="Path to fine-tuned PEFT adapter (uses LocalLLMClient instead of Ollama)",
+    )
     parser.add_argument("--experiment", default="bioscholar-eval", help="MLflow experiment name")
     parser.add_argument("--run-name", default=None, help="MLflow run name (auto-generated if None)")
     parser.add_argument("--no-mlflow", action="store_true", help="Skip MLflow logging")
+    parser.add_argument(
+        "--max-questions",
+        type=int,
+        default=None,
+        help="Limit evaluation to first N questions (for quick testing)",
+    )
     return parser.parse_args()
 
 
@@ -196,7 +218,11 @@ def main() -> None:
         sys.exit(1)
 
     gold_df = pd.read_csv(args.gold_set)
-    print(f"Loaded {len(gold_df)} evaluation questions from {args.gold_set}")
+    if args.max_questions:
+        gold_df = gold_df.head(args.max_questions)
+        print(f"Loaded {len(gold_df)} evaluation questions (limited from {args.gold_set})")
+    else:
+        print(f"Loaded {len(gold_df)} evaluation questions from {args.gold_set}")
 
     # Initialize components
     model_path = args.model_path or _find_latest_model()
@@ -208,7 +234,18 @@ def main() -> None:
         qdrant_path=args.qdrant_path,
     )
     retriever = HybridRetriever(ner=ner, store=store)
-    llm = LLMClient(base_url=args.llm_base_url, model=args.llm_model)
+
+    # Use fine-tuned local model or Ollama
+    if args.llm_adapter_path:
+        from pathlib import Path
+        adapter = Path(args.llm_adapter_path)
+        if not adapter.exists():
+            print(f"Adapter path not found: {adapter}")
+            sys.exit(1)
+        llm = LocalLLMClient(adapter_path=str(adapter))
+        print(f"Using fine-tuned LLM: {adapter}")
+    else:
+        llm = LLMClient(base_url=args.llm_base_url, model=args.llm_model)
 
     print(f"Collection '{args.collection_name}': {store.count()} chunks")
 
@@ -264,7 +301,8 @@ def main() -> None:
         "qdrant_path": args.qdrant_path,
         "top_k": args.top_k,
         "score_threshold": args.score_threshold,
-        "llm_model": args.llm_model,
+        "llm_model": llm.model,
+        "llm_adapter_path": args.llm_adapter_path,
         "llm_available": llm_available,
         "skip_llm": not use_llm,
     }

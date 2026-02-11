@@ -1,0 +1,13 @@
+# Phase 7: LLM Fine-Tuning Dependencies
+# Install with: pip install -r requirements_finetune.txt
+
+# Extends requirements.txt - install that first
+
+# QLoRA / 4-bit training (CUDA only)
+bitsandbytes>=0.43.0
+
+# TRL for SFT/RLHF
+trl>=0.8.0
+
+# PEFT already in main requirements
+# peft>=0.10.0
