@@ -158,17 +158,19 @@
 
 ---
 
-## Phase 6: Azure Deployment (Week 13-14)
+## Phase 6: Cloud Deployment (Week 13-14) — *Deferred*
 **Goal**: Production deployment.
 
+**Decision**: Staying local (Ollama + Docker) for this personal project. If you later need a cloud LLM at no cost, **Groq** offers a free tier (Llama, Mistral) with an OpenAI-compatible API — easy to add as `LLM_PROVIDER=groq`.
+
 ### Tasks
-- [ ] **Task 6.1**: Migrate to Azure OpenAI
-- [ ] **Task 6.2**: Deploy Qdrant to Azure Container Instances
-- [ ] **Task 6.3**: Deploy FastAPI to Azure Container Apps
-- [ ] **Task 6.4**: Set up Application Insights (logging + monitoring)
+- [ ] **Task 6.1**: Migrate to cloud LLM (Azure OpenAI / Groq / Google Gemini)
+- [ ] **Task 6.2**: Deploy Qdrant to cloud (ACI, Qdrant Cloud, or similar)
+- [ ] **Task 6.3**: Deploy FastAPI to cloud (Container Apps, App Service, etc.)
+- [ ] **Task 6.4**: Set up Application Insights or equivalent (logging + monitoring)
 - [ ] **Task 6.5**: Obtain AI-102 certification
 
-**Deliverable**: Live API endpoint with Swagger docs at `https://bioscholar.azurewebsites.net/docs`.
+**Deliverable**: Live API endpoint with Swagger docs.
 
 ---
 
