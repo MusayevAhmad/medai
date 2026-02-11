@@ -147,9 +147,12 @@
   - `lookup_drug_interaction(drug1, drug2)`: RxNav external API call with graceful fallback
   - `summarize_section(doc_id, section)`: Document-filtered section synthesis + citations
 
-- [ ] **Task 5.3**: Add observability
-  - Integrate LangSmith or Arize Phoenix
-  - Log the full agent trace (all steps, tool calls, intermediate results)
+- [x] **Task 5.3**: Add observability
+  - Integrated LangSmith for agent tracing (env: LANGCHAIN_TRACING_V2, LANGCHAIN_API_KEY)
+  - Agent traces show full graph steps, tool calls, LLM invocations
+  - API request logging middleware logs all requests to `outputs/logs/api_requests.jsonl`
+  - Enhanced `queries.jsonl` with agent_used, agent_steps, request_id
+  - `.env.example` documents LangSmith setup
 
 **Deliverable**: Agent can answer "What are the side effects of Drug A and how do they compare to Drug B?"
 

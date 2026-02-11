@@ -151,14 +151,32 @@ def build_agent_graph(llm: Any, retriever: Any) -> Any:
     return graph.compile()
 
 
-def run_agent(graph: Any, question: str) -> Dict[str, Any]:
-    """Run the compiled graph and return normalized output."""
+def run_agent(
+    graph: Any,
+    question: str,
+    config: Dict[str, Any] | None = None,
+) -> Dict[str, Any]:
+    """Run the compiled graph and return normalized output.
+
+    Args:
+        graph: Compiled LangGraph agent.
+        question: User question.
+        config: Optional invoke config. When LangSmith tracing is enabled
+            (LANGCHAIN_TRACING_V2=true, LANGCHAIN_API_KEY set), use this to
+            pass run_name and metadata for better trace visibility.
+    """
     initial = {
         "question": question,
         "messages": [HumanMessage(content=question)],
         "citations": [],
     }
-    result = graph.invoke(initial)
+    invoke_config = config or {}
+    invoke_config.setdefault("recursion_limit", MAX_STEPS)
+    invoke_config.setdefault("run_name", "bioscholar_agent")
+    invoke_config.setdefault("metadata", {})
+    if isinstance(invoke_config["metadata"], dict):
+        invoke_config["metadata"]["question_preview"] = (question or "")[:200]
+    result = graph.invoke(initial, config=invoke_config)
     messages = result.get("messages", [])
 
     final_answer = "I don't have enough information to answer this question."

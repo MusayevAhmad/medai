@@ -49,8 +49,22 @@ python scripts/ingest_documents.py --pdf-dir data/raw_pdfs/ --collection-name bi
 uvicorn app.main:app --reload --port 8000
 
 # API docs at http://localhost:8000/docs
-# Endpoints: GET /health, POST /entities, POST /search, POST /query
+# Endpoints: GET /health, POST /entities, POST /search, POST /query, POST /visual-search
 ```
+
+### Observability (LangSmith + API Logs)
+
+```bash
+# Enable LangSmith tracing for agent traces (steps, tool calls, LLM invocations)
+export LANGCHAIN_TRACING_V2=true
+export LANGCHAIN_API_KEY=your-api-key
+export LANGCHAIN_PROJECT=bioscholar
+
+uvicorn app.main:app --reload --port 8000
+# View traces at https://smith.langchain.com
+```
+
+API request logging (method, path, status, duration) is always written to `outputs/logs/api_requests.jsonl`. Query/response summaries go to `outputs/logs/queries.jsonl`.
 
 ### Docker Deployment
 

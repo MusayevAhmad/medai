@@ -18,12 +18,15 @@ import json
 import logging
 import os
 import re
+import time
+import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import List
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.dependencies import (
     get_agent_graph,
@@ -58,11 +61,12 @@ logging.basicConfig(
 logger = logging.getLogger("bioscholar")
 
 # ---------------------------------------------------------------------------
-# Query log path
+# Log paths
 # ---------------------------------------------------------------------------
 _LOG_DIR = Path("outputs/logs")
 _LOG_DIR.mkdir(parents=True, exist_ok=True)
 _QUERY_LOG = _LOG_DIR / "queries.jsonl"
+_API_REQUEST_LOG = _LOG_DIR / "api_requests.jsonl"
 
 # ---------------------------------------------------------------------------
 # Guardrails
@@ -82,22 +86,88 @@ def _check_prompt_injection(text: str) -> bool:
     return any(p.search(text) for p in _INJECTION_PATTERNS)
 
 
-def _log_query(endpoint: str, request_data: dict, response_data: dict) -> None:
+def _log_query(
+    endpoint: str,
+    request_data: dict,
+    response_data: dict,
+    request_id: str | None = None,
+    agent_used: bool | None = None,
+    agent_steps: int | None = None,
+) -> None:
     """Append a query log entry to outputs/logs/queries.jsonl."""
+    summary_keys = ("count", "retrieval_count", "model", "answer", "agent_used", "agent_steps")
+    response_summary = {k: v for k, v in response_data.items() if k in summary_keys}
+    if agent_used is not None:
+        response_summary["agent_used"] = agent_used
+    if agent_steps is not None:
+        response_summary["agent_steps"] = agent_steps
+
     entry = {
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "endpoint": endpoint,
         "request": request_data,
-        "response_summary": {
-            k: v for k, v in response_data.items()
-            if k in ("count", "retrieval_count", "model", "answer")
-        },
+        "response_summary": response_summary,
     }
+    if request_id:
+        entry["request_id"] = request_id
+
     try:
         with open(_QUERY_LOG, "a") as f:
             f.write(json.dumps(entry) + "\n")
     except Exception as e:
         logger.warning("Failed to log query: %s", e)
+
+
+def _log_api_request(
+    method: str,
+    path: str,
+    status_code: int,
+    duration_ms: float,
+    request_id: str,
+) -> None:
+    """Append an API request log entry to outputs/logs/api_requests.jsonl."""
+    entry = {
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "request_id": request_id,
+        "method": method,
+        "path": path,
+        "status_code": status_code,
+        "duration_ms": round(duration_ms, 2),
+    }
+
+    try:
+        with open(_API_REQUEST_LOG, "a") as f:
+            f.write(json.dumps(entry) + "\n")
+    except Exception as e:
+        logger.warning("Failed to log API request: %s", e)
+
+
+class APILoggingMiddleware(BaseHTTPMiddleware):
+    """Log all API requests to outputs/logs/api_requests.jsonl.
+
+    Logs method, path, status_code, duration_ms, and request_id.
+    Request/response bodies are captured by endpoint-level _log_query
+    for /entities, /search, /query, /visual-search.
+    """
+
+    async def dispatch(self, request: Request, call_next):
+        request_id = str(uuid.uuid4())
+        request.state.request_id = request_id
+        start = time.perf_counter()
+
+        response = await call_next(request)
+        duration_ms = (time.perf_counter() - start) * 1000
+
+        _log_api_request(
+            method=request.method,
+            path=request.url.path,
+            status_code=response.status_code,
+            duration_ms=duration_ms,
+            request_id=request_id,
+        )
+
+        response.headers["X-Request-ID"] = request_id
+        return response
 
 
 # ---------------------------------------------------------------------------
@@ -108,6 +178,19 @@ def _log_query(endpoint: str, request_data: dict, response_data: dict) -> None:
 async def lifespan(app: FastAPI):
     """Load models and connect to Qdrant on startup."""
     logger.info("Starting BioScholar API...")
+
+    # LangSmith tracing (agent traces) — enabled when LANGCHAIN_TRACING_V2=true
+    langsmith_enabled = os.environ.get("LANGCHAIN_TRACING_V2", "").lower() in ("true", "1")
+    if langsmith_enabled:
+        logger.info(
+            "LangSmith tracing enabled (project=%s)",
+            os.environ.get("LANGCHAIN_PROJECT", "bioscholar"),
+        )
+    else:
+        logger.info(
+            "LangSmith tracing disabled. Set LANGCHAIN_TRACING_V2=true and "
+            "LANGCHAIN_API_KEY to enable agent trace logging."
+        )
 
     # Build Qdrant URL from QDRANT_HOST/PORT if set (Docker), else use local path
     qdrant_host = os.environ.get("QDRANT_HOST")
@@ -139,6 +222,8 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+app.add_middleware(APILoggingMiddleware)
+
 
 # ---------------------------------------------------------------------------
 # Endpoints
@@ -158,7 +243,7 @@ async def health():
 
 
 @app.post("/entities", response_model=EntitiesResponse)
-async def extract_entities(req: EntitiesRequest):
+async def extract_entities(request: Request, req: EntitiesRequest):
     """Extract medical entities from text using the fine-tuned NER model."""
     if _check_prompt_injection(req.text):
         raise HTTPException(status_code=400, detail="Input rejected by safety filter.")
@@ -180,12 +265,17 @@ async def extract_entities(req: EntitiesRequest):
         count=len(entities),
     )
 
-    _log_query("/entities", req.model_dump(), result.model_dump())
+    _log_query(
+        "/entities",
+        req.model_dump(),
+        result.model_dump(),
+        request_id=getattr(request.state, "request_id", None),
+    )
     return result
 
 
 @app.post("/search", response_model=SearchResponse)
-async def search(req: SearchRequest):
+async def search(request: Request, req: SearchRequest):
     """Search ingested documents with optional entity filtering."""
     if _check_prompt_injection(req.query):
         raise HTTPException(status_code=400, detail="Input rejected by safety filter.")
@@ -223,12 +313,17 @@ async def search(req: SearchRequest):
         count=len(search_result["results"]),
     )
 
-    _log_query("/search", req.model_dump(), result.model_dump())
+    _log_query(
+        "/search",
+        req.model_dump(),
+        result.model_dump(),
+        request_id=getattr(request.state, "request_id", None),
+    )
     return result
 
 
 @app.post("/query", response_model=QueryResponse)
-async def query(req: QueryRequest):
+async def query(request: Request, req: QueryRequest):
     """Full RAG pipeline: NER + retrieval + LLM answer generation.
 
     Automatically routes complex questions (comparisons, multi-entity)
@@ -272,7 +367,16 @@ async def query(req: QueryRequest):
         from src.agent import run_agent
 
         logger.info("Routing to agent pipeline: %r", req.question)
-        agent_result = run_agent(agent_graph, req.question)
+        agent_result = run_agent(
+            agent_graph,
+            req.question,
+            config={
+                "metadata": {
+                    "endpoint": "/query",
+                    "use_agent": True,
+                },
+            },
+        )
 
         answer = agent_result["answer"]
         agent_steps = agent_result["steps"]
@@ -317,7 +421,14 @@ async def query(req: QueryRequest):
             agent_steps=agent_steps,
         )
 
-        _log_query("/query", req.model_dump(), result.model_dump())
+        _log_query(
+            "/query",
+            req.model_dump(),
+            result.model_dump(),
+            request_id=getattr(request.state, "request_id", None),
+            agent_used=True,
+            agent_steps=agent_steps,
+        )
         return result
 
     # ------------------------------------------------------------------
@@ -389,12 +500,19 @@ async def query(req: QueryRequest):
         agent_steps=None,
     )
 
-    _log_query("/query", req.model_dump(), result.model_dump())
+    _log_query(
+        "/query",
+        req.model_dump(),
+        result.model_dump(),
+        request_id=getattr(request.state, "request_id", None),
+        agent_used=False,
+        agent_steps=None,
+    )
     return result
 
 
 @app.post("/visual-search", response_model=VisualSearchResponse)
-async def visual_search(req: VisualSearchRequest):
+async def visual_search(request: Request, req: VisualSearchRequest):
     """Search for text, tables, and figures with optional type filtering.
 
     Use this endpoint to find tables ("show me Table 2") or figures
@@ -450,5 +568,10 @@ async def visual_search(req: VisualSearchRequest):
         figures_found=figures_found,
     )
 
-    _log_query("/visual-search", req.model_dump(), result.model_dump())
+    _log_query(
+        "/visual-search",
+        req.model_dump(),
+        result.model_dump(),
+        request_id=getattr(request.state, "request_id", None),
+    )
     return result
