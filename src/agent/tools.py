@@ -1,78 +1,156 @@
-"""
-Tool definitions for the medical research agent.
+"""Tools used by the LangGraph medical agent.
 
-Each tool wraps an existing BioScholar capability (retrieval, summarisation,
-etc.) and exposes it to the LangGraph ReAct agent via LangChain's ``@tool``
-decorator.
-
-Tools are created via factory functions so that dependencies (retriever,
-vector store) can be injected at graph-build time.
+Task 5.2 adds three concrete tools:
+- ``search_guidelines(query)``: wraps existing hybrid retrieval.
+- ``lookup_drug_interaction(drug1, drug2)``: uses RxNav interaction API.
+- ``summarize_section(doc_id, section)``: finds section-relevant snippets.
 """
 
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Dict, List
+from typing import Any, Dict, List
 
-from langchain_core.tools import tool
-
-if TYPE_CHECKING:
-    from src.retrieve import HybridRetriever
+import httpx
 
 logger = logging.getLogger(__name__)
 
 
-def _format_search_results(results: List[Dict]) -> str:
-    """Format retriever results as numbered text for the LLM.
-
-    Each result is labelled ``[Source N]`` with file, page, and relevance
-    so the agent can cite them accurately in its final answer.
-    """
-    if not results:
-        return "No relevant guidelines found for this query."
-
-    parts: List[str] = []
-    for i, r in enumerate(results, 1):
-        source = r.get("source_file", "unknown")
-        page = r.get("page_number", "?")
-        text = (r.get("text", "") or "")[:600]
-        score = r.get("score", 0)
-        entities = r.get("extracted_entities", [])
-        entity_str = ", ".join(entities[:5]) if entities else "none"
-
-        parts.append(
-            f"[Source {i}] (File: {source}, Page: {page}, "
-            f"Relevance: {score:.3f}, Entities: {entity_str})\n{text}"
-        )
-
-    return "\n\n".join(parts)
+def _citation_from_result(result: Dict[str, Any]) -> Dict[str, Any]:
+    """Convert a retrieval hit to the agent's citation shape."""
+    text = result.get("text", "")
+    return {
+        "source_file": result.get("source_file", ""),
+        "page_number": result.get("page_number", 0),
+        "chunk_id": result.get("chunk_id", ""),
+        "score": float(result.get("score", 0.0)),
+        "text_preview": text[:280],
+        "extracted_entities": result.get("extracted_entities", []),
+    }
 
 
-def create_search_tool(retriever: HybridRetriever):
-    """Create a ``search_guidelines`` tool bound to *retriever*.
+def build_tools(retriever: Any, timeout_s: float = 12.0) -> Dict[str, Any]:
+    """Build concrete tool callables bound to runtime dependencies.
 
-    The returned tool is a LangChain ``@tool``-decorated callable that
-    the agent can invoke by name.  It runs the hybrid retriever (NER +
-    semantic search) and returns formatted text the LLM can reason over.
+    Args:
+        retriever: The existing ``HybridRetriever`` instance.
+        timeout_s: Timeout used for outbound drug-interaction API calls.
+
+    Returns:
+        Dict mapping tool name to callable.
     """
 
-    @tool
-    def search_guidelines(query: str) -> str:
-        """Search medical guidelines database for information about diseases,
-        drugs, symptoms, treatments, or procedures.
+    def search_guidelines(query: str, top_k: int = 5) -> Dict[str, Any]:
+        """Search indexed medical guidelines and return citations."""
+        search = retriever.search(query=query, top_k=top_k, entity_filter=True)
+        results = search.get("results", [])
+        citations = [_citation_from_result(r) for r in results]
+        snippets = [r.get("text", "")[:400] for r in results]
+        return {
+            "query": query,
+            "result_count": len(results),
+            "snippets": snippets,
+            "citations": citations,
+        }
 
-        Use this tool to find evidence-based medical information from clinical
-        practice guidelines and PubMed papers.
+    def lookup_drug_interaction(drug1: str, drug2: str) -> Dict[str, Any]:
+        """Lookup pairwise drug interaction evidence via RxNav API."""
+        cleaned_1 = drug1.strip()
+        cleaned_2 = drug2.strip()
+        if not cleaned_1 or not cleaned_2:
+            return {
+                "drug1": cleaned_1,
+                "drug2": cleaned_2,
+                "found": False,
+                "message": "Both drug names are required.",
+                "citations": [],
+            }
 
-        For **comparison questions**, call this tool separately for each item
-        being compared (e.g. once for "aspirin" and once for "ibuprofen").
+        url = "https://rxnav.nlm.nih.gov/REST/interaction/interaction.json"
+        params = {"rxcui": f"{cleaned_1}+{cleaned_2}"}
 
-        Args:
-            query: A focused medical search query, e.g. "metformin side effects",
-                   "hypertension treatment guidelines", "aspirin contraindications".
-        """
-        logger.info("Agent tool call: search_guidelines(%r)", query)
-        result = retriever.search(query=query, top_k=5, entity_filter=True)
-        return _format_search_results(result["results"])
+        try:
+            with httpx.Client(timeout=timeout_s) as client:
+                response = client.get(url, params=params)
+                response.raise_for_status()
+        except Exception as exc:
+            logger.warning("Drug interaction lookup failed for %s/%s: %s", cleaned_1, cleaned_2, exc)
+            return {
+                "drug1": cleaned_1,
+                "drug2": cleaned_2,
+                "found": False,
+                "message": "Interaction service unavailable.",
+                "citations": [],
+            }
 
-    return search_guidelines
+        data = response.json()
+        groups = data.get("interactionTypeGroup") or []
+        if not groups:
+            return {
+                "drug1": cleaned_1,
+                "drug2": cleaned_2,
+                "found": False,
+                "message": "No known interaction found in RxNav.",
+                "citations": [],
+            }
+
+        interaction_texts: List[str] = []
+        for group in groups:
+            for item in group.get("interactionType", []):
+                for pair in item.get("interactionPair", []):
+                    desc = pair.get("description")
+                    if desc:
+                        interaction_texts.append(desc)
+
+        deduped = list(dict.fromkeys(interaction_texts))
+        summary = deduped[0] if deduped else "Interaction data available but no description provided."
+
+        return {
+            "drug1": cleaned_1,
+            "drug2": cleaned_2,
+            "found": True,
+            "summary": summary,
+            "details": deduped[:5],
+            "citations": [
+                {
+                    "source_file": "rxnav_nlm_api",
+                    "page_number": 0,
+                    "chunk_id": "rxnav_interaction",
+                    "score": 1.0,
+                    "text_preview": summary[:280],
+                    "extracted_entities": [f"Chemical:{cleaned_1}", f"Chemical:{cleaned_2}"],
+                }
+            ],
+        }
+
+    def summarize_section(doc_id: str, section: str, top_k: int = 8) -> Dict[str, Any]:
+        """Summarize a section from a specific source document."""
+        query = f"{doc_id} {section}"
+        search = retriever.search(query=query, top_k=top_k, entity_filter=False)
+        results = [r for r in search.get("results", []) if r.get("source_file") == doc_id]
+
+        section_l = section.lower().strip()
+        if section_l:
+            section_matches = [r for r in results if section_l in (r.get("text") or "").lower()]
+            if section_matches:
+                results = section_matches
+
+        picks = results[:3]
+        bullets = [f"- {r.get('text', '').strip()[:220]}" for r in picks if r.get("text")]
+
+        summary = "\n".join(bullets) if bullets else "No section summary available from indexed chunks."
+        citations = [_citation_from_result(r) for r in picks]
+
+        return {
+            "doc_id": doc_id,
+            "section": section,
+            "summary": summary,
+            "result_count": len(results),
+            "citations": citations,
+        }
+
+    return {
+        "search_guidelines": search_guidelines,
+        "lookup_drug_interaction": lookup_drug_interaction,
+        "summarize_section": summarize_section,
+    }
