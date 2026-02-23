@@ -26,6 +26,7 @@ from pathlib import Path
 from typing import List
 
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.dependencies import (
@@ -41,6 +42,8 @@ from app.schemas import (
     EntitiesRequest,
     EntitiesResponse,
     EntityOut,
+    IngestRequest,
+    IngestResponse,
     QueryRequest,
     QueryResponse,
     SearchRequest,
@@ -224,6 +227,11 @@ app = FastAPI(
 
 app.add_middleware(APILoggingMiddleware)
 
+# Serve extracted figures (Phase 4) at /figures/<filename>
+_FIGURES_DIR = Path("data/figures")
+_FIGURES_DIR.mkdir(parents=True, exist_ok=True)
+app.mount("/figures", StaticFiles(directory=str(_FIGURES_DIR)), name="figures")
+
 
 # ---------------------------------------------------------------------------
 # Endpoints
@@ -341,13 +349,17 @@ async def query(request: Request, req: QueryRequest):
     retriever = get_retriever()
     llm = get_llm()
     ner = get_ner()
+    llm_available = llm.is_available()
 
     # ------------------------------------------------------------------
     # Decide whether to use the agent
     # ------------------------------------------------------------------
     agent_graph = get_agent_graph()
 
-    if req.use_agent is True:
+    if not llm_available:
+        # Agent requires LLM; route to fast retrieval-only behavior.
+        use_agent = False
+    elif req.use_agent is True:
         use_agent = agent_graph is not None
     elif req.use_agent is False:
         use_agent = False
@@ -451,22 +463,28 @@ async def query(request: Request, req: QueryRequest):
         answer = "I don't have enough relevant information to answer this question."
         citations = []
     else:
-        # Step 2: Generate answer with LLM
-        try:
-            answer = llm.generate_answer(
-                question=req.question,
-                context_chunks=chunks,
+        if not llm_available:
+            answer = (
+                "LLM server is not available, so I can't generate a grounded answer right now. "
+                "Here are the top retrieved citations you can inspect."
             )
-        except ConnectionError as e:
-            raise HTTPException(
-                status_code=503,
-                detail=str(e),
-            )
-        except RuntimeError as e:
-            raise HTTPException(
-                status_code=502,
-                detail=f"LLM generation failed: {e}",
-            )
+        else:
+            # Step 2: Generate answer with LLM
+            try:
+                answer = llm.generate_answer(
+                    question=req.question,
+                    context_chunks=chunks,
+                )
+            except ConnectionError as e:
+                raise HTTPException(
+                    status_code=503,
+                    detail=str(e),
+                )
+            except RuntimeError as e:
+                raise HTTPException(
+                    status_code=502,
+                    detail=f"LLM generation failed: {e}",
+                )
 
         # Step 3: Build citations
         citations = [
@@ -530,22 +548,33 @@ async def visual_search(request: Request, req: VisualSearchRequest):
 
     results: list = []
     for r in search_result["results"]:
-        chunk_type = r.get("chunk_type", "text")
+        payload = r.get("payload") or {}
+        chunk_type = payload.get("chunk_type", "text") or "text"
 
         # Filter by requested chunk types
         if req.chunk_types and chunk_type not in req.chunk_types:
             continue
 
+        image_path = payload.get("image_path") or None
+        caption = payload.get("caption") or None
+        image_url = None
+        if chunk_type == "figure" and image_path:
+            try:
+                image_url = f"/figures/{Path(str(image_path)).name}"
+            except Exception:
+                image_url = None
+
         results.append(VisualResult(
-            chunk_id=r.get("chunk_id", ""),
-            text=r.get("text", ""),
+            chunk_id=payload.get("chunk_id", "") or r.get("chunk_id", ""),
+            text=payload.get("text", "") or r.get("text", ""),
             score=round(r.get("score", 0.0), 4),
-            source_file=r.get("source_file", ""),
-            page_number=r.get("page_number", 0),
+            source_file=payload.get("source_file", "") or r.get("source_file", ""),
+            page_number=payload.get("page_number", 0) or r.get("page_number", 0),
             chunk_type=chunk_type,
-            image_path=r.get("image_path"),
-            caption=r.get("caption"),
-            extracted_entities=r.get("extracted_entities", []),
+            image_path=image_path,
+            image_url=image_url,
+            caption=caption,
+            extracted_entities=payload.get("extracted_entities", []) or r.get("extracted_entities", []),
         ))
 
     tables_found = sum(1 for r in results if r.chunk_type == "table")
@@ -575,3 +604,75 @@ async def visual_search(request: Request, req: VisualSearchRequest):
         request_id=getattr(request.state, "request_id", None),
     )
     return result
+
+
+@app.post("/ingest", response_model=IngestResponse)
+async def ingest(req: IngestRequest):
+    """Demo ingestion endpoint: ingest all PDFs from a directory into Qdrant."""
+    store = get_store()
+    ner = get_ner()
+
+    if req.collection_name and req.collection_name != getattr(store, "collection_name", None):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"collection_name mismatch. API is configured for "
+                f"'{getattr(store, 'collection_name', '')}', got '{req.collection_name}'."
+            ),
+        )
+
+    pdf_dir = Path(req.pdf_dir)
+    if not pdf_dir.exists() or not pdf_dir.is_dir():
+        raise HTTPException(status_code=400, detail=f"pdf_dir not found: {pdf_dir}")
+
+    pdf_paths = sorted([p for p in pdf_dir.glob("*.pdf") if p.is_file()])
+    if not pdf_paths:
+        raise HTTPException(status_code=400, detail=f"No PDFs found in {pdf_dir}")
+
+    figures_dir = Path(req.figures_dir)
+    figures_dir.mkdir(parents=True, exist_ok=True)
+
+    start = time.perf_counter()
+    chunks_inserted = 0
+    chunk_type_counts: dict[str, int] = {}
+
+    for pdf_path in pdf_paths:
+        if req.multimodal:
+            from src.multimodal_ingest import process_pdf_multimodal
+
+            chunks = process_pdf_multimodal(
+                pdf_path,
+                ner=ner,
+                max_tokens=req.max_tokens,
+                overlap=req.overlap,
+                threshold=req.threshold,
+                figures_dir=figures_dir,
+            )
+        else:
+            from src.ingest import process_pdf
+
+            chunks = process_pdf(
+                pdf_path,
+                ner=ner,
+                max_tokens=req.max_tokens,
+                overlap=req.overlap,
+                threshold=req.threshold,
+            )
+
+        for c in chunks:
+            ctype = (c.metadata or {}).get("chunk_type", "text") or "text"
+            chunk_type_counts[ctype] = chunk_type_counts.get(ctype, 0) + 1
+
+        chunks_inserted += store.add_chunks(chunks, batch_size=req.batch_size)
+
+    duration_ms = (time.perf_counter() - start) * 1000
+
+    return IngestResponse(
+        pdf_count=len(pdf_paths),
+        pdfs=[p.name for p in pdf_paths],
+        chunks_inserted=chunks_inserted,
+        chunk_type_counts=chunk_type_counts,
+        collection_name=getattr(store, "collection_name", ""),
+        figures_dir=str(figures_dir),
+        duration_ms=round(duration_ms, 2),
+    )

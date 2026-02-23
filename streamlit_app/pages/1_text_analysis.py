@@ -1,7 +1,7 @@
 """
 Text Analysis Page
 
-Analyze text descriptions of symptoms using the NER model.
+Extract entities from text using the BioScholar API (/entities).
 """
 
 import streamlit as st
@@ -67,30 +67,12 @@ def highlight_entities(text, entities):
 
 
 def main():
-    st.title("📝 Text Symptom Analysis")
-    st.markdown("Analyze text descriptions of symptoms using our fine-tuned BioBERT NER model.")
+    st.title("Entities (NER)")
+    st.markdown("Extract medical entities using the BioScholar API endpoint `POST /entities`.")
     
     st.markdown("---")
     
-    # Check model availability
-    from utils.model_loader import get_ner_predictor
-    
-    with st.spinner("Loading model..."):
-        predictor = get_ner_predictor()
-    
-    if not predictor:
-        st.error("""
-        **NER Model not available!**
-        
-        Please train the model first:
-        ```bash
-        python data/prepare_data.py --include-synthetic
-        python src/train.py --config config.yaml
-        ```
-        """)
-        return
-    
-    st.success("Model loaded successfully!")
+    from utils.api_client import BioScholarAPIError, entities, get_client
     
     # Input section
     col1, col2 = st.columns([2, 1])
@@ -127,37 +109,45 @@ def main():
         st.markdown("""
         The model detects:
         
-        - 🔵 **Symptom** - Physical symptoms
-        - 🔴 **Disease** - Medical conditions
-        - 🟢 **Chemical** - Medications/drugs
+        - **Disease**\n
+        - **Chemical**\n
+        - (and other symptom-like mentions depending on training)\n
         """)
     
     # Analyze button
-    if st.button("🔍 Analyze Text", type="primary", use_container_width=True):
+    threshold = st.slider(
+        "Confidence threshold",
+        min_value=0.0,
+        max_value=1.0,
+        value=0.3,
+        step=0.05,
+    )
+
+    if st.button("Extract entities", type="primary", use_container_width=True):
         if not input_text.strip():
             st.warning("Please enter some text to analyze.")
             return
         
-        with st.spinner("Analyzing..."):
+        with st.spinner("Calling API..."):
             try:
-                result = predictor.predict(input_text)
-                entities = result.entities if hasattr(result, 'entities') else result.get('entities', [])
+                with get_client(timeout_s=60.0) as client:
+                    ents = entities(client, input_text, threshold=threshold)
                 
                 st.markdown("---")
                 st.markdown("### Results")
                 
-                if entities:
+                if ents:
                     # Highlighted text
                     st.markdown("#### Highlighted Text")
-                    highlighted = highlight_entities(input_text, entities)
+                    highlighted = highlight_entities(input_text, ents)
                     st.markdown(highlighted, unsafe_allow_html=True)
                     
                     st.markdown("#### Extracted Entities")
                     
                     # Group by type
                     by_type = {}
-                    for ent in entities:
-                        label = ent.label if hasattr(ent, 'label') else ent.get('label', 'Unknown')
+                    for ent in ents:
+                        label = ent.label
                         if label not in by_type:
                             by_type[label] = []
                         by_type[label].append(ent)
@@ -166,22 +156,19 @@ def main():
                     cols = st.columns(len(by_type))
                     for i, (label, ents) in enumerate(by_type.items()):
                         with cols[i]:
-                            emoji = "🔵" if "symptom" in label.lower() else "🔴" if "disease" in label.lower() else "🟢"
-                            st.markdown(f"**{emoji} {label}**")
+                            st.markdown(f"**{label}**")
                             for ent in ents:
-                                ent_text = ent.text if hasattr(ent, 'text') else ent.get('text', '')
-                                ent_conf = ent.confidence if hasattr(ent, 'confidence') else ent.get('confidence', 0)
-                                st.markdown(f"- {ent_text} ({ent_conf:.1%})")
+                                st.markdown(f"- {ent.text} ({ent.confidence:.1%})")
                     
                     # Entity table
                     st.markdown("#### Detailed Results")
                     table_data = []
-                    for ent in entities:
+                    for ent in ents:
                         table_data.append({
-                            "Text": ent.text if hasattr(ent, 'text') else ent.get('text', ''),
-                            "Type": ent.label if hasattr(ent, 'label') else ent.get('label', ''),
-                            "Confidence": f"{(ent.confidence if hasattr(ent, 'confidence') else ent.get('confidence', 0)):.1%}",
-                            "Position": f"{(ent.span if hasattr(ent, 'span') else ent.get('span', [0,0]))}"
+                            "Text": ent.text,
+                            "Type": ent.label,
+                            "Confidence": f"{ent.confidence:.1%}",
+                            "Position": f"{ent.span}",
                         })
                     st.table(table_data)
                     
@@ -191,38 +178,34 @@ def main():
                             "text": input_text,
                             "entities": [
                                 {
-                                    "text": ent.text if hasattr(ent, 'text') else ent.get('text', ''),
-                                    "label": ent.label if hasattr(ent, 'label') else ent.get('label', ''),
-                                    "confidence": ent.confidence if hasattr(ent, 'confidence') else ent.get('confidence', 0),
-                                    "span": list(ent.span if hasattr(ent, 'span') else ent.get('span', [0, 0]))
+                                    "text": ent.text,
+                                    "label": ent.label,
+                                    "confidence": ent.confidence,
+                                    "span": list(ent.span),
                                 }
-                                for ent in entities
+                                for ent in ents
                             ]
                         }
                         st.json(json_output)
                 else:
                     st.info("No medical entities detected in the text.")
                     
-            except Exception as e:
-                st.error(f"Error during analysis: {str(e)}")
+            except BioScholarAPIError as e:
+                st.error(str(e))
+            except Exception:
+                st.error("Unexpected error while calling the API.")
     
     # Sidebar info
     with st.sidebar:
         st.markdown("### ℹ️ About")
         st.markdown("""
-        This page uses a fine-tuned **BioBERT** model for Named Entity Recognition (NER).
-        
-        The model was trained to identify:
-        - Symptoms
-        - Diseases
-        - Chemicals/Medications
+        This page calls the BioScholar backend `/entities` endpoint.
         """)
         
         st.markdown("### 💡 Tips")
         st.markdown("""
-        - Use complete sentences for better results
-        - The model works with both casual and medical language
-        - Longer text may contain more entities
+        - If the API isn't reachable, start it with `make serve`.\n
+        - Adjust the confidence threshold to reduce noise.\n
         """)
 
 

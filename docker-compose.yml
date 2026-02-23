@@ -43,6 +43,9 @@ services:
       - ./outputs/models:/app/outputs/models:ro
       # Persist query logs
       - ./outputs/logs:/app/outputs/logs
+      # Shared demo data (PDF staging + extracted figures)
+      - ./data/raw_pdfs:/app/data/raw_pdfs
+      - ./data/figures:/app/data/figures
     environment:
       # NER model – auto-detected from mounted outputs/models/
       - NER_MODEL_PATH=
@@ -58,6 +61,23 @@ services:
       - LLM_MODEL=llama3.2
     depends_on:
       - qdrant
+    restart: unless-stopped
+
+  # ---------- Streamlit Demo UI ----------
+  streamlit:
+    build:
+      context: .
+      dockerfile: Dockerfile.streamlit
+    container_name: bioscholar-streamlit
+    ports:
+      - "8501:8501"
+    environment:
+      - BIOSCHOLAR_API_URL=http://api:8000
+    volumes:
+      - ./data/raw_pdfs:/app/data/raw_pdfs
+      - ./data/figures:/app/data/figures
+    depends_on:
+      - api
     restart: unless-stopped
 
 volumes:

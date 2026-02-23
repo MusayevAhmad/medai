@@ -4,7 +4,7 @@ Pydantic schemas for the BioScholar API.
 Defines request/response models for the /query, /entities, and /search endpoints.
 """
 
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
@@ -144,6 +144,10 @@ class VisualResult(BaseModel):
     page_number: int
     chunk_type: str = Field("text", description="Type: text, table, or figure")
     image_path: Optional[str] = Field(None, description="Path to figure image (if chunk_type=figure)")
+    image_url: Optional[str] = Field(
+        None,
+        description="HTTP URL to the figure image (if chunk_type=figure)",
+    )
     caption: Optional[str] = Field(None, description="Table/figure caption")
     extracted_entities: List[str] = Field(default_factory=list)
 
@@ -157,3 +161,51 @@ class VisualSearchResponse(BaseModel):
     count: int
     tables_found: int = Field(0, description="Number of table results")
     figures_found: int = Field(0, description="Number of figure results")
+
+
+# ---------------------------------------------------------------------------
+# /ingest endpoint (demo convenience)
+# ---------------------------------------------------------------------------
+
+class IngestRequest(BaseModel):
+    """Request body for the /ingest endpoint.
+
+    This endpoint is intended for local/demo usage to ingest PDFs from a directory
+    into the already-configured Qdrant collection.
+    """
+
+    pdf_dir: str = Field("data/raw_pdfs", description="Directory containing PDFs to ingest")
+    figures_dir: str = Field("data/figures", description="Directory to save extracted figures")
+    multimodal: bool = Field(True, description="Extract tables and figures in addition to text")
+    max_tokens: int = Field(500, ge=50, le=2000, description="Max approximate tokens per text chunk")
+    overlap: int = Field(50, ge=0, le=500, description="Token overlap between consecutive chunks")
+    threshold: float = Field(0.0, ge=0.0, le=1.0, description="NER confidence threshold for annotation")
+    batch_size: int = Field(64, ge=1, le=512, description="Embedding batch size")
+    collection_name: Optional[str] = Field(
+        None,
+        description="Optional safety check: must match the API's configured Qdrant collection if provided",
+    )
+    model_path: Optional[str] = Field(
+        None,
+        description="Unused (demo endpoint uses the API's loaded NER model). Kept for compatibility.",
+    )
+    qdrant_path: Optional[str] = Field(
+        None,
+        description="Unused (demo endpoint uses the API's configured Qdrant connection). Kept for compatibility.",
+    )
+    qdrant_url: Optional[str] = Field(
+        None,
+        description="Unused (demo endpoint uses the API's configured Qdrant connection). Kept for compatibility.",
+    )
+
+
+class IngestResponse(BaseModel):
+    """Response from the /ingest endpoint."""
+
+    pdf_count: int
+    pdfs: List[str]
+    chunks_inserted: int
+    chunk_type_counts: Dict[str, int]
+    collection_name: str
+    figures_dir: str
+    duration_ms: float

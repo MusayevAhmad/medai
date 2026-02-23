@@ -1,0 +1,4 @@
+# Minimal dependencies for the demo Streamlit UI (RAG client only)
+streamlit>=1.28.0
+httpx>=0.27.0
+

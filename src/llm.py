@@ -146,10 +146,11 @@ class LLMClient:
                     headers=headers,
                 )
                 response.raise_for_status()
-        except httpx.ConnectError:
+        except httpx.RequestError as e:
             raise ConnectionError(
                 f"Cannot connect to LLM server at {self.base_url}. "
-                "If using Ollama, make sure it is running: `ollama serve`"
+                "If using Ollama, make sure it is running: `ollama serve`. "
+                f"Details: {e}"
             )
         except httpx.HTTPStatusError as e:
             raise RuntimeError(
