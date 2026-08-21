@@ -54,6 +54,18 @@ class Entity:
         }
 
 
+def _find_latest_model(default_path: str = "outputs/models/final_model") -> str:
+    """Find the most recent training run's final_model directory or return default."""
+    import glob
+    path_obj = Path(default_path)
+    if path_obj.exists():
+        return str(path_obj)
+    candidates = sorted(glob.glob("outputs/models/run_*/final_model"), reverse=True)
+    if candidates and Path(candidates[0]).exists():
+        return candidates[0]
+    return default_path
+
+
 class MedicalNER:
     """
     Medical Named Entity Recognition inference engine.
@@ -72,7 +84,7 @@ class MedicalNER:
     
     def __init__(
         self,
-        model_path: str = "outputs/models/final_model",
+        model_path: Optional[str] = "outputs/models/final_model",
         device: Optional[str] = None,
         verbose: bool = True,
     ):
@@ -81,7 +93,7 @@ class MedicalNER:
         
         Args:
             model_path: Path to saved model directory containing model weights,
-                       tokenizer, and config files
+                       tokenizer, and config files (auto-finds latest run if default)
             device: Device to run inference on ("cpu", "cuda", "mps").
                    Auto-detects best available device if None
             verbose: Whether to print loading information
@@ -92,8 +104,9 @@ class MedicalNER:
         """
         from src.model import load_model, get_device
         
-        # Validate path
-        model_path = Path(model_path)
+        # Auto-resolve latest model if default requested or not found directly
+        resolved_path = _find_latest_model(model_path or "outputs/models/final_model")
+        model_path = Path(resolved_path)
         if not model_path.exists():
             raise FileNotFoundError(f"Model path does not exist: {model_path}")
         

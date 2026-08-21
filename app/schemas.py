@@ -4,7 +4,7 @@ Pydantic schemas for the BioScholar API.
 Defines request/response models for the /query, /entities, and /search endpoints.
 """
 
-from typing import Dict, List, Optional
+from typing import List, Optional, Any, Dict
 
 from pydantic import BaseModel, Field
 
@@ -117,91 +117,64 @@ class QueryResponse(BaseModel):
     retrieval_count: int = Field(..., description="Number of chunks used as context")
     agent_used: bool = Field(False, description="Whether the LangGraph agent was used")
     agent_steps: Optional[int] = Field(None, description="Number of agent reasoning steps (if agent was used)")
+    agent_trace: Optional[List[dict]] = Field(None, description="Full agent execution trace (messages)")
 
 
 # ---------------------------------------------------------------------------
-# /visual-search endpoint (Phase 4 — multimodal)
+# /visual-search endpoint
 # ---------------------------------------------------------------------------
 
 class VisualSearchRequest(BaseModel):
-    """Request body for the /visual-search endpoint."""
-
-    query: str = Field(..., min_length=1, description="Search query (e.g. 'show me Table 2')")
-    top_k: int = Field(5, ge=1, le=20, description="Number of results")
-    chunk_types: Optional[List[str]] = Field(
-        None,
-        description="Filter by chunk type: 'text', 'table', 'figure'. None returns all types.",
-    )
+    """Request body for /visual-search."""
+    query: str
+    top_k: int = 5
+    chunk_types: Optional[List[str]] = None
 
 
 class VisualResult(BaseModel):
-    """A single visual search result."""
-
+    """Visual search result."""
     chunk_id: str
     text: str
     score: float
     source_file: str
     page_number: int
-    chunk_type: str = Field("text", description="Type: text, table, or figure")
-    image_path: Optional[str] = Field(None, description="Path to figure image (if chunk_type=figure)")
-    image_url: Optional[str] = Field(
-        None,
-        description="HTTP URL to the figure image (if chunk_type=figure)",
-    )
-    caption: Optional[str] = Field(None, description="Table/figure caption")
-    extracted_entities: List[str] = Field(default_factory=list)
+    chunk_type: str
+    image_path: Optional[str] = None
+    image_url: Optional[str] = None
+    caption: Optional[str] = None
+    extracted_entities: List[str] = []
 
 
 class VisualSearchResponse(BaseModel):
-    """Response from the /visual-search endpoint."""
-
+    """Response for /visual-search."""
     query: str
     query_entities: List[EntityOut]
     results: List[VisualResult]
     count: int
-    tables_found: int = Field(0, description="Number of table results")
-    figures_found: int = Field(0, description="Number of figure results")
+    tables_found: int
+    figures_found: int
 
 
 # ---------------------------------------------------------------------------
-# /ingest endpoint (demo convenience)
+# /ingest endpoint
 # ---------------------------------------------------------------------------
 
 class IngestRequest(BaseModel):
-    """Request body for the /ingest endpoint.
-
-    This endpoint is intended for local/demo usage to ingest PDFs from a directory
-    into the already-configured Qdrant collection.
-    """
-
-    pdf_dir: str = Field("data/raw_pdfs", description="Directory containing PDFs to ingest")
-    figures_dir: str = Field("data/figures", description="Directory to save extracted figures")
-    multimodal: bool = Field(True, description="Extract tables and figures in addition to text")
-    max_tokens: int = Field(500, ge=50, le=2000, description="Max approximate tokens per text chunk")
-    overlap: int = Field(50, ge=0, le=500, description="Token overlap between consecutive chunks")
-    threshold: float = Field(0.0, ge=0.0, le=1.0, description="NER confidence threshold for annotation")
-    batch_size: int = Field(64, ge=1, le=512, description="Embedding batch size")
-    collection_name: Optional[str] = Field(
-        None,
-        description="Optional safety check: must match the API's configured Qdrant collection if provided",
-    )
-    model_path: Optional[str] = Field(
-        None,
-        description="Unused (demo endpoint uses the API's loaded NER model). Kept for compatibility.",
-    )
-    qdrant_path: Optional[str] = Field(
-        None,
-        description="Unused (demo endpoint uses the API's configured Qdrant connection). Kept for compatibility.",
-    )
-    qdrant_url: Optional[str] = Field(
-        None,
-        description="Unused (demo endpoint uses the API's configured Qdrant connection). Kept for compatibility.",
-    )
+    """Request body for /ingest."""
+    collection_name: Optional[str] = None
+    qdrant_path: str = "data/qdrant_db"
+    model_path: Optional[str] = None
+    pdf_dir: str = "data/raw_pdfs"
+    figures_dir: str = "data/figures"
+    multimodal: bool = True
+    max_tokens: int = 500
+    overlap: int = 50
+    threshold: float = 0.0
+    batch_size: int = 64
 
 
 class IngestResponse(BaseModel):
-    """Response from the /ingest endpoint."""
-
+    """Response for /ingest."""
     pdf_count: int
     pdfs: List[str]
     chunks_inserted: int
@@ -209,3 +182,20 @@ class IngestResponse(BaseModel):
     collection_name: str
     figures_dir: str
     duration_ms: float
+
+
+# ---------------------------------------------------------------------------
+# /analyze-image endpoint
+# ---------------------------------------------------------------------------
+
+class AnalyzeImageRequest(BaseModel):
+    """Request body for /analyze-image."""
+    image_base64: str = Field(..., description="Base64 encoded image")
+    prompt: str = Field(..., description="Question or instruction")
+    model: Optional[str] = Field(None, description="Model override (e.g. llama3.2-vision)")
+
+
+class AnalyzeImageResponse(BaseModel):
+    """Response for /analyze-image."""
+    analysis: str
+    model: str

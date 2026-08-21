@@ -100,11 +100,16 @@ docker-down:  ## Stop Docker services
 	docker-compose down
 
 # ---------------------------------------------------------------------------
-# API
+# API & UI
 # ---------------------------------------------------------------------------
 
 serve:  ## Start FastAPI development server
 	uvicorn app.main:app --reload --port 8000
+
+demo:  ## Run Streamlit interactive demo UI
+	streamlit run streamlit_app/app.py
+
+ui: demo  ## Alias for demo
 
 # ---------------------------------------------------------------------------
 # Testing

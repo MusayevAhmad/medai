@@ -99,20 +99,7 @@ class LLMClient:
         context_chunks: List[Dict],
         system_prompt: Optional[str] = None,
     ) -> str:
-        """Generate a grounded answer using retrieved context.
-
-        Args:
-            question: The user's medical question.
-            context_chunks: Retrieved chunks from the vector store.
-            system_prompt: Custom system prompt (uses default if None).
-
-        Returns:
-            The generated answer text.
-
-        Raises:
-            ConnectionError: If the LLM server is unreachable.
-            RuntimeError: If the API returns an error.
-        """
+        """Generate a grounded answer using retrieved context."""
         if not context_chunks:
             return "I don't have any relevant information to answer this question."
 
@@ -133,6 +120,43 @@ class LLMClient:
             "max_tokens": self.max_tokens,
         }
 
+        return self._call_api(payload)
+
+    def analyze_image(
+        self,
+        image_base64: str,
+        prompt: str,
+        model: Optional[str] = None,
+    ) -> str:
+        """Analyze a medical image using a Vision-Language Model.
+
+        Args:
+            image_base64: Base64-encoded image string.
+            prompt: Question or instruction about the image.
+            model: Optional model override (e.g. 'llama3.2-vision').
+
+        Returns:
+            Analysis text.
+        """
+        # OpenAI/Ollama compatible vision format
+        user_content = [
+            {"type": "text", "text": prompt},
+            {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{image_base64}"}},
+        ]
+
+        payload = {
+            "model": model or self.model,
+            "messages": [
+                {"role": "user", "content": user_content},
+            ],
+            "temperature": 0.1,
+            "max_tokens": self.max_tokens,
+        }
+
+        return self._call_api(payload)
+
+    def _call_api(self, payload: Dict) -> str:
+        """Helper to make the API call."""
         headers = {
             "Content-Type": "application/json",
             "Authorization": f"Bearer {self.api_key}",

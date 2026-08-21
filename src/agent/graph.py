@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 MAX_STEPS = 6
 
 
-def is_complex_query(question: str, entities: Sequence[Any]) -> bool:
+def is_complex_query(question: str, entities: Sequence[Any] = ()) -> bool:
     """Heuristic complexity detection used by ``/query`` auto-routing."""
     q = question.lower()
     patterns = [
@@ -190,4 +190,5 @@ def run_agent(
         "answer": final_answer,
         "steps": steps,
         "citations": result.get("citations", []),
+        "messages": messages,
     }

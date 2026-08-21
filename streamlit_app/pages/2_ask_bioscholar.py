@@ -95,6 +95,33 @@ def main() -> None:
         meta_cols[2].metric("Agent used", str(res.agent_used))
         meta_cols[3].metric("Agent steps", str(res.agent_steps or "-"))
 
+        if res.agent_trace:
+            with st.expander("🕵️ Agent Trace (Reasoning Steps)", expanded=False):
+                for step_idx, msg in enumerate(res.agent_trace):
+                    role = msg.get("type", "unknown")
+                    content = msg.get("content", "")
+                    # Clean up content for display
+                    if role == "human":
+                        st.chat_message("user").write(content)
+                    elif role == "ai":
+                        # Check for tool calls
+                        tool_calls = msg.get("tool_calls", [])
+                        if tool_calls:
+                            for tc in tool_calls:
+                                st.chat_message("assistant").write(f"🛠️ **Tool Call:** `{tc.get('name')}`")
+                                st.json(tc.get("args"))
+                        else:
+                            st.chat_message("assistant").write(content)
+                    elif role == "tool":
+                        st.chat_message("tool").caption(f"Tool Result ({msg.get('name', 'unknown')})")
+                        # Try to format JSON if possible
+                        try:
+                            import json
+                            json_content = json.loads(content)
+                            st.json(json_content)
+                        except:
+                            st.text(content[:500] + "..." if len(content) > 500 else content)
+
         st.markdown("---")
         st.markdown("### Citations")
 

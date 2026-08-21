@@ -85,6 +85,10 @@ def main():
             st.switch_page("pages/3_visual_search.py")
         if st.button("Ingest PDFs", use_container_width=True):
             st.switch_page("pages/4_ingest_pdfs.py")
+        if st.button("Case Analyzer", use_container_width=True):
+            st.switch_page("pages/6_case_analyzer.py")
+        if st.button("Scan Assistant", use_container_width=True):
+            st.switch_page("pages/7_medical_scan_assistant.py")
         if st.button("About", use_container_width=True):
             st.switch_page("pages/5_about.py")
 
@@ -92,30 +96,56 @@ def main():
         st.markdown("### Disclaimer")
         st.caption("Educational demo only. Not medical advice.")
 
-    st.markdown("### What to demo")
+    st.markdown("### 🔬 System Capabilities & Interactive Modules")
     st.markdown(
         """
-- Ingest PDFs to build a Qdrant collection.\n
-- Ask questions and inspect grounded citations.\n
-- Retrieve tables/figures via Visual Search.\n
+        Explore the end-to-end clinical AI workflow across specialized modules:
         """
     )
 
-    st.markdown("---")
-
-    col1, col2, col3, col4 = st.columns(4)
+    # Row 1
+    col1, col2, col3 = st.columns(3)
     with col1:
-        if st.button("Entities (NER) →", use_container_width=True):
-            st.switch_page("pages/1_text_analysis.py")
+        with st.container():
+            st.markdown("#### 🏷️ Clinical NER")
+            st.caption("Fine-tuned BioBERT model extracting Diseases, Chemicals, and Symptoms with token offsets.")
+            if st.button("Explore Entities (NER) →", use_container_width=True):
+                st.switch_page("pages/1_text_analysis.py")
     with col2:
-        if st.button("Ask BioScholar →", use_container_width=True):
-            st.switch_page("pages/2_ask_bioscholar.py")
+        with st.container():
+            st.markdown("#### 💬 Grounded RAG Assistant")
+            st.caption("Ask clinical questions with strict document grounding, confidence scoring, and verified citations.")
+            if st.button("Ask BioScholar →", use_container_width=True):
+                st.switch_page("pages/2_ask_bioscholar.py")
     with col3:
-        if st.button("Visual Search →", use_container_width=True):
-            st.switch_page("pages/3_visual_search.py")
+        with st.container():
+            st.markdown("#### 📊 Visual Search")
+            st.caption("Retrieve extracted tables in Markdown and figure diagrams embedded in clinical PDFs.")
+            if st.button("Explore Visual Search →", use_container_width=True):
+                st.switch_page("pages/3_visual_search.py")
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    # Row 2
+    col4, col5, col6 = st.columns(3)
     with col4:
-        if st.button("Ingest PDFs →", use_container_width=True):
-            st.switch_page("pages/4_ingest_pdfs.py")
+        with st.container():
+            st.markdown("#### 📄 Document Ingestion")
+            st.caption("Upload new guidelines, automatically chunk, annotate with NER, and index into Qdrant.")
+            if st.button("Ingest Clinical PDFs →", use_container_width=True):
+                st.switch_page("pages/4_ingest_pdfs.py")
+    with col5:
+        with st.container():
+            st.markdown("#### 🩺 Patient Case Analyzer")
+            st.caption("Complex patient vignette analysis combining ReAct agent reasoning and drug interaction checks.")
+            if st.button("Analyze Patient Cases →", use_container_width=True):
+                st.switch_page("pages/6_case_analyzer.py")
+    with col6:
+        with st.container():
+            st.markdown("#### 👁️ Medical Scan Assistant")
+            st.caption("Vision-Language Model (VLM) clinical interpretation of medical figures, scans, and reports.")
+            if st.button("Scan Assistant →", use_container_width=True):
+                st.switch_page("pages/7_medical_scan_assistant.py")
 
 
 if __name__ == "__main__":

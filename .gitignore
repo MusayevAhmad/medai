@@ -1,21 +1,42 @@
-# Model outputs and checkpoints (too large for GitHub)
+# =============================================================================
+# BioScholar .gitignore
+# =============================================================================
+
+# --- Model Checkpoints & Large Weights ---
 outputs/
 *.pt
 *.pth
 *.safetensors
 *.bin
 *.ckpt
+*.onnx
 
-# Data files
+# --- Data & Generated Assets ---
+data/raw_pdfs/
+data/figures/
+data/qdrant_db/
+data/finetune/
 data/processed/
 data/xray/
 data/hf_cache/
 *.arrow
+*.pdf
 
-# Results
-results/
+# --- MLflow & Experiment Tracking ---
+mlruns/
+mlflow.db
+wandb/
+.wandb/
 
-# Python
+# --- Testing & Coverage ---
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.nox/
+.tox/
+
+# --- Python Bytecode & Packaging ---
 __pycache__/
 *.py[cod]
 *$py.class
@@ -26,26 +47,45 @@ __pycache__/
 dist/
 build/
 
-# Virtual environments
+# --- Virtual Environments ---
 venv/
 env/
-.env
+.venv/
+ENV/
 
-# Jupyter
+# --- Secrets & Environment Variables ---
+.env
+.env.*
+!.env.example
+
+# --- Database Files ---
+*.db
+*.sqlite
+*.sqlite3
+
+# --- Logs ---
+*.log
+logs/
+outputs/logs/
+
+# --- Jupyter Notebook Checkpoints ---
 .ipynb_checkpoints/
 *.ipynb_checkpoints
 
-# IDE
+# --- IDE & OS Files ---
 .idea/
 .vscode/
 *.swp
 *.swo
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
 
-# Logs
-*.log
-logs/
-
-# Temporary files
+# --- Temporary Files ---
 *.tmp
 *.temp
+results/

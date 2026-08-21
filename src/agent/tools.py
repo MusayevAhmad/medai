@@ -29,6 +29,20 @@ def _citation_from_result(result: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def _format_search_results(results: List[Dict[str, Any]]) -> str:
+    """Format retrieval search hits into a numbered context text block for LLM reasoning."""
+    if not results:
+        return "No relevant clinical guideline sections found."
+    lines = []
+    for i, r in enumerate(results, 1):
+        src = r.get("source_file", "unknown")
+        page = r.get("page_number", 0)
+        score = r.get("score", 0.0)
+        text = (r.get("text") or "").strip()
+        lines.append(f"[Source {i}] ({src}, page {page}, score: {score:.3f}):\n{text}")
+    return "\n\n".join(lines)
+
+
 def build_tools(retriever: Any, timeout_s: float = 12.0) -> Dict[str, Any]:
     """Build concrete tool callables bound to runtime dependencies.
 

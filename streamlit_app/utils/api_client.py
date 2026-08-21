@@ -47,6 +47,7 @@ class QueryResponse:
     retrieval_count: int
     agent_used: bool
     agent_steps: Optional[int]
+    agent_trace: Optional[List[Dict[str, Any]]]
 
 
 @dataclass(frozen=True)
@@ -177,6 +178,7 @@ def query(
         retrieval_count=int(data.get("retrieval_count", 0) or 0),
         agent_used=bool(data.get("agent_used", False)),
         agent_steps=data.get("agent_steps", None),
+        agent_trace=data.get("agent_trace", None),
     )
 
 
@@ -222,6 +224,19 @@ def visual_search(
         tables_found=int(data.get("tables_found", 0) or 0),
         figures_found=int(data.get("figures_found", 0) or 0),
     )
+
+
+def analyze_image(
+    client: httpx.Client,
+    image_base64: str,
+    prompt: str,
+    model: Optional[str] = None,
+) -> str:
+    payload = {"image_base64": image_base64, "prompt": prompt, "model": model}
+    resp = client.post("/analyze-image", json=payload)
+    _raise_for_status(resp)
+    data = resp.json()
+    return str(data.get("analysis", ""))
 
 
 def ingest(

@@ -26,6 +26,7 @@ from pathlib import Path
 from typing import List
 
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
 
@@ -38,6 +39,8 @@ from app.dependencies import (
     init_dependencies,
 )
 from app.schemas import (
+    AnalyzeImageRequest,
+    AnalyzeImageResponse,
     Citation,
     EntitiesRequest,
     EntitiesResponse,
@@ -225,6 +228,13 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 app.add_middleware(APILoggingMiddleware)
 
 # Serve extracted figures (Phase 4) at /figures/<filename>
@@ -422,6 +432,16 @@ async def query(request: Request, req: QueryRequest):
         except Exception:
             pass
 
+        # Serialize agent trace
+        agent_trace = []
+        for msg in agent_result.get("messages", []):
+            if hasattr(msg, "dict"):
+                agent_trace.append(msg.dict())
+            elif hasattr(msg, "model_dump"):
+                agent_trace.append(msg.model_dump())
+            else:
+                agent_trace.append({"type": msg.type, "content": str(msg.content)})
+
         result = QueryResponse(
             question=req.question,
             answer=answer,
@@ -431,6 +451,7 @@ async def query(request: Request, req: QueryRequest):
             retrieval_count=len(citations),
             agent_used=True,
             agent_steps=agent_steps,
+            agent_trace=agent_trace,
         )
 
         _log_query(
@@ -600,6 +621,36 @@ async def visual_search(request: Request, req: VisualSearchRequest):
     _log_query(
         "/visual-search",
         req.model_dump(),
+        result.model_dump(),
+        request_id=getattr(request.state, "request_id", None),
+    )
+    return result
+
+
+@app.post("/analyze-image", response_model=AnalyzeImageResponse)
+async def analyze_image(request: Request, req: AnalyzeImageRequest):
+    """Analyze a medical image using a Vision-Language Model."""
+    llm = get_llm()
+    if not llm.is_available():
+        raise HTTPException(status_code=503, detail="LLM server not available")
+
+    try:
+        analysis = llm.analyze_image(
+            image_base64=req.image_base64,
+            prompt=req.prompt,
+            model=req.model,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+    result = AnalyzeImageResponse(
+        analysis=analysis,
+        model=req.model or llm.model,
+    )
+
+    _log_query(
+        "/analyze-image",
+        {"prompt": req.prompt, "model": req.model},
         result.model_dump(),
         request_id=getattr(request.state, "request_id", None),
     )
